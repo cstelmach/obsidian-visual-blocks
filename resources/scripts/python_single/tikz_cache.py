@@ -153,42 +153,21 @@ def render_tikz(block: str, output_png: Path, work_dir: Path) -> tuple[bool, str
             snippet = " | ".join(err_lines[:3]) or log.splitlines()[-1] if log.splitlines() else ""
         return False, f"lualatex failed: {snippet[:200]}"
 
-    # 2. Convert PDF → PNG @ DPI (full huge page, lots of whitespace)
+    # 2. Convert PDF → PNG @ DPI (standalone class already crops to content)
     out_stem = output_png.with_suffix("")
-    raw_png = work_dir / "raw.png"
     try:
         result = subprocess.run(
             ["pdftoppm", "-r", str(DPI), "-png", "-singlefile",
-             str(pdf_path), str(raw_png.with_suffix(""))],
-            capture_output=True,
-            text=True,
-            timeout=PDFTOPPM_TIMEOUT_S,
+             str(pdf_path), str(out_stem)],
+            capture_output=True, text=True, timeout=PDFTOPPM_TIMEOUT_S,
         )
     except subprocess.TimeoutExpired:
         return False, "pdftoppm timeout"
     except FileNotFoundError:
         return False, "pdftoppm not found on PATH"
 
-    if result.returncode != 0 or not raw_png.exists():
-        return False, f"pdftoppm failed: {result.stderr.strip()[:200]}"
-
-    # 3. Trim whitespace via ImageMagick (substitutes for standalone's auto-crop)
-    try:
-        result = subprocess.run(
-            ["magick", str(raw_png), "-trim", "+repage",
-             "-bordercolor", "white", "-border", "12x12",
-             str(output_png)],
-            capture_output=True,
-            text=True,
-            timeout=PDFTOPPM_TIMEOUT_S,
-        )
-    except subprocess.TimeoutExpired:
-        return False, "magick trim timeout"
-    except FileNotFoundError:
-        return False, "magick (ImageMagick) not found on PATH"
-
     if result.returncode != 0 or not output_png.exists():
-        return False, f"magick trim failed: {result.stderr.strip()[:200]}"
+        return False, f"pdftoppm failed: {result.stderr.strip()[:200]}"
 
     return True, None
 
