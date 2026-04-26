@@ -38,7 +38,7 @@ from pathlib import Path
 # Configuration
 
 VAULT_ROOT = Path("/Users/cs/Obsidian/_")
-CACHE_DIR = VAULT_ROOT / "attachments" / "tikz-cache"
+CACHE_DIR = VAULT_ROOT / "attachments" / "cache" / "tikz"
 SCAN_ROOTS = [VAULT_ROOT / "kn"]
 DPI = 300
 LUALATEX_TIMEOUT_S = 90
