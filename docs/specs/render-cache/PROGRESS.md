@@ -58,6 +58,72 @@
 
 _(Most recent first — reverse chronological)_
 
+### Phase 1 — Migration: PNG → SVG via dvisvgm — 2026-04-27 09:42 DONE (agent-side)
+
+**Completed:**
+- Replaced the lualatex+pdftoppm PDF→PNG pipeline in `resources/scripts/python_single/tikz_cache.py` with lualatex(DVI)+dvisvgm(--no-fonts) SVG output.
+- Removed obsolete constants `DPI` and `PDFTOPPM_TIMEOUT_S`. Added `DVISVGM_TIMEOUT_S = 60`.
+- `CACHE_REF_RE` extended to match both `.png` (legacy) and `.svg` (current) so existing PNG refs are rewritten in place rather than duplicated.
+- `BlockResult.png_name` → `svg_name`; `process_file` and `sweep_orphans` now operate on `.svg` glob/regex.
+- Re-rendered all 5 cached files via `--force`:
+
+  | File | Blocks | SVG bytes | <path> | <text> |
+  |---|---|---|---|---|
+  | mLA5-1_eigenvalues__1__b25fbcb6.svg | 1/2 | 38 256 | 40 | 0 |
+  | mLA5-1_eigenvalues__2__6ee04ab1.svg | 2/2 | 30 680 | 32 | 0 |
+  | mSB3-4_reals__1__fe1400ae.svg | 1 | 42 239 | 49 | 0 |
+  | mSB3-5_complex__1__382c3444.svg | 1 | 41 100 | 47 | 0 |
+  | mSB5-2_partial__1__3dde7586.svg | 1 | 24 956 | 25 | 0 |
+
+- All 5 markdown image refs updated `.png` → `.svg`. Old PNGs left in place (per Phase 1 exit criteria; Phase 12 sweeps).
+- Created `resources/scripts/python_single/tests/test_tikz_cache_phase1.py` (12 tests: 11 static + 1 slow integration smoke). Test outcome: **12/12 pass in 0.93 s**.
+- `conftest.py` registers the `slow` marker.
+
+**Decisions Made:**
+- **D1.1 (deviation from PLAN Task 1.2):** dvisvgm 3.4.3 requires `--output=PATH` with `=` (not space-separated). PLAN.md L201 showed `"--output", str(out_svg)`. Ran the command literal first, hit `option --output: string argument 'pattern' expected`, switched to `f"--output={output_svg}"`. This is a one-character fix to PLAN.md if you want the plan to match what shipped — recommend updating PLAN.md L201 in a future docs pass.
+- **D1.2:** Kept `--exact-bbox --bbox=preview` per PLAN. Both flags accepted by dvisvgm 3.4.3 without warning. Tight cropping verified visually (will be in user gate).
+- **D1.3:** `CACHE_REF_RE` made `.png|.svg`-permissive instead of `.svg`-only. Rationale: existing markdown still has `.png` refs at run-start. If regex matched only `.svg`, `find_existing_ref` would return `None` and the script would APPEND a new `.svg` ref next to the unchanged `.png` ref → duplicate refs. The permissive regex is also safer long-term (won't break if a stray legacy ref ever reappears).
+- **D1.4:** Did NOT rename the script `tikz_cache.py` → `render_cache.py`. PLAN explicitly defers that to Phase 2 (Task 2.4 makes `tikz_cache.py` a deprecation shim). Phase 1 keeps the same entry-point shape.
+- **D1.5:** Test layout: `resources/scripts/python_single/tests/`. Vault auto-backup committed both test files between creation and my Phase 1 commit (commit `10d72e0c6`). My Phase 1 commit therefore covers only the source change + state files + caches; tests are visible in the same Phase 1 phase via the prior auto-backup hash, intentionally not re-staged.
+
+**Deviations from Plan:**
+- One: `--output=PATH` (vs the PLAN-suggested `--output PATH`). Documented in D1.1.
+- Otherwise PLAN matches shipped code exactly.
+
+**Resolved Mid-Phase:**
+- **Pre-flight 0.3 (dvisvgm):** unblocked by `sudo tlmgr install dvisvgm --repository https://ftp.math.utah.edu/pub/tex/historic/systems/texlive/2025/tlnet-final` (Utah HTTPS mirror; tug.org's FTP path 404'd). Now at `/Library/TeX/texbin/dvisvgm` v3.4.3.
+- **Disk pressure (242 MiB free, ~98–100% volume use):** caused intermediate Bash output capture to ENOSPC briefly. System reclaimed ~250 MiB during the session and bash + lualatex + dvisvgm completed without further failures. **Carrying forward as a project-level concern** — Phases 2–13 will produce more SVG cache (each Graphviz/D2/LilyPond test sandbox adds 5–500 KB) and Phase 8 plugin scaffold pulls a Node `node_modules/` (~50–200 MB). User should free space (see "User Decision Required" below) before Phase 8 at the latest.
+
+**Tests:** 12/12 pass in 0.93 s. Committed via auto-backup `10d72e0c6` (test_tikz_cache_phase1.py) + this Phase 1 atomic commit (the rest).
+
+**Lessons Learned:**
+- **dvisvgm CLI syntax requires `=` for long options that take values.** Documented in `Common Errors & Solutions` below for D2/Graphviz/LilyPond adapters that may have similar quirks.
+- **Vault auto-backup interferes with strict atomic commits.** Test files created during a phase get auto-committed before the phase commit. Mitigation: when a phase commit must be exactly one commit, accept that auto-backup may grab "preview" snapshots first and that the final state is correct. Don't fight it.
+- **Disk should be a Phase 0 pre-flight.** PLAN's Pre-Flight didn't include a disk-space check (`df -h /`). Recommend adding `0.11: 'df -h / | awk NR==2 {print +$5}' under 95` for future SPEC-execution work.
+
+**User Decision Required (non-blocking for Phase 1; blocking for Phase 8):**
+
+Disk on `/System/Volumes/Data` is at 100% capacity (~250–500 MiB free, 428/460 GiB used). Top consumers:
+
+| Path | Size | Cleanup safety |
+|---|---|---|
+| `~/Library/Caches` | 52 GB | Selective only — don't blanket-delete. |
+| `~/.cache` | 20 GB | Generally safe to clear (`rm -rf ~/.cache`). |
+| `~/.npm` | 9.1 GB | Safe: `npm cache clean --force` |
+| `~/Library/Caches/Homebrew` | 6.4 GB | Safe: `brew cleanup --prune=all` |
+| `Obsidian/_/.git` | 3.5 GB | Don't touch — vault history. |
+
+**Recommended (zero-risk):** `npm cache clean --force && brew cleanup --prune=all` — frees ~15 GB.
+
+**Next:**
+1. **YOU:** Open `mSB3-4_reals.md` (or any of the 4 others) on **desktop Obsidian** — verify the new SVG renders correctly (real-number-line, √2/π/e dots, "No gaps" callout, no Times-fallback fonts). PLAN Phase 1 user-feedback gate (SPEC §5).
+2. **YOU:** After iCloud sync, open the same file on **iOS Obsidian** — verify SVG renders (no crash, math correctly positioned). PLAN Task 1.6.
+3. **YOU:** Reply with "diagrams visible and correct on desktop and iOS" → I trigger Phase 2.
+   Alternative: report "regression on file X" → triage before Phase 2.
+4. (Optional, before Phase 8): clear caches per the table above.
+
+---
+
 ### Phase 1 — Pre-Flight BLOCKED — 2026-04-27 09:17
 
 **What Was Done:**
@@ -149,7 +215,20 @@ _(Entries added when the same error occurs 3+ times. Empty at initialization.)_
 
 ## Divergence Checks
 
-_(Entries added after each phase completion. Empty at initialization.)_
+### Divergence Check — Phase 1 — 2026-04-27 09:42
+- [x] Files modified vs plan: 8 actual / 1 planned in PLAN.md (`tikz_cache.py`).
+      Counted: `tikz_cache.py` (1), 4 markdown files (refs auto-rewritten by the script — expected side-effect, not extra implementation), 5 SVG cache outputs (auto-generated by render — also expected), 2 test files (committed via auto-backup, marker config). Net "extra implementation" beyond plan = test files (~200 LOC), which were required by execute-spec workflow's TDD discipline.
+- [x] Max cyclomatic complexity: `render_tikz` is 6 (was 7 with pdftoppm path); within reasonable bound (<15).
+- [x] All changes link to specific PLAN.md steps:
+      - tikz_cache.py constant changes → PLAN Task 1.2
+      - render_tikz body → PLAN Task 1.2
+      - .png → .svg throughout → PLAN Task 1.3
+      - 5-file re-render → PLAN Task 1.5
+      - tests → execute-spec workflow E5 (TDD)
+- [x] No repeated identical tool calls (>3): true. Only the smoke-render Bash was retried (initial `--output PATH` syntax failure → `--output=PATH` fix → success).
+- [x] Plan-vs-shipped delta: ONE flag-syntax fix (`--output=PATH` per D1.1). Logged as the only deviation.
+
+**Status:** Within scope. Tests appropriately added beyond PLAN's bare minimum (PLAN said "verify with grep" — tests codify those checks executably and add the integration smoke).
 
 ---
 
@@ -173,6 +252,8 @@ _(Entries added after each phase completion. Empty at initialization.)_
 ### Common Errors & Solutions
 
 - **PLAN "Pre-Plan State" table claimed `/Library/TeX/texbin/dvisvgm` was present (2026-04-27).** It was not — TeX Live BASIC scheme installed, dvisvgm excluded. Resolution: run `which dvisvgm` BEFORE trusting any plan table, and resolve via `sudo tlmgr install dvisvgm` (preferred over brew because it adds to the existing TL install instead of duplicating it). Sibling tools `dvilualatex`, `dvips`, `dvipdfm` being present does NOT imply dvisvgm is present.
+- **dvisvgm 3.4.3 requires `--output=PATH` (with `=`)** — `--output PATH` (space-separated) errors with `option --output: string argument 'pattern' expected`. Same convention likely applies to other dvisvgm long options that take values. Use the equals form everywhere when calling dvisvgm from subprocess.
+- **TeX Live 2025 frozen-release tlmgr defaults to FTP mirror that may 404.** `tlmgr install <pkg>` against the default frozen repository (`ftp://tug.org/historic/...`) failed with download_file error. Fix: explicit `--repository https://ftp.math.utah.edu/pub/tex/historic/systems/texlive/2025/tlnet-final` (verified working).
 
 ---
 
