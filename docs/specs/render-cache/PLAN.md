@@ -150,7 +150,7 @@ Phase 8 parallelizable with Phases 3–7.
 
 ### Phase 1 — Migration: PNG → SVG via dvisvgm
 
-**SPEC reference:** §5.1, §7.1, §7.3.
+**SPEC reference:** §3.7 T1 (mandatory `dvisvgm --no-fonts`), §3.7 T6 (wikilink), §5 Phase 1.
 **Effort:** 3–5 hours.
 **Owner:** agent.
 **Depends on:** Pre-Flight 0.1–0.7.
@@ -308,7 +308,7 @@ Re-check Task 1.2.
 
 ### Phase 2 — Restructure into render_cache package
 
-**SPEC reference:** §3.3, §5.6.
+**SPEC reference:** §3.3 (components), §3.4 (Renderer Adapter Contract), §3.7 T8/T9/T10 (cache key), §5 Phase 2.
 **Effort:** 2–4 hours.
 **Owner:** agent.
 **Depends on:** Phase 1 done.
@@ -352,7 +352,7 @@ done
 - Cache path construction → `cache_paths.py`
 - Postprocess hooks (empty for now; Phase 7 fills in) → `postprocess.py`
 
-Define the abstract base class in `adapters/base.py` per SPEC §5.6.
+Define the abstract base class in `adapters/base.py` per SPEC §3.4 (Renderer Adapter Contract).
 
 **Verify:**
 ```bash
@@ -442,7 +442,7 @@ sys.exit(render_main())
 
 ### Phase 3 — Add Graphviz adapter
 
-**SPEC reference:** §5.2.
+**SPEC reference:** §5 Phase 3, §3.4 (RendererAdapter contract).
 **Effort:** 1–2 hours.
 **Owner:** agent.
 **Depends on:** Phase 2 done. Pre-flight check 3 (which dot).
@@ -499,14 +499,14 @@ python3 /Users/cs/Obsidian/_/resources/scripts/python_single/render_cache.py \
 
 #### Exit criteria (Phase 3)
 
-- Acceptance criterion 8.2 met.
+- Acceptance criteria AC3.1–AC3.4 met.
 - Test sandbox renders.
 
 ---
 
 ### Phase 4 — Add D2 adapter
 
-**SPEC reference:** §5.3.
+**SPEC reference:** §5 Phase 4, §3.4 (RendererAdapter contract).
 **Effort:** 1–2 hours.
 **Owner:** agent.
 **Depends on:** Phase 2 done. Pre-flight check 4 (which d2).
@@ -524,13 +524,13 @@ result = subprocess.run(
 
 Test sandbox: `_RENDER_TEST_d2.md` with 2–3 representative D2 blocks.
 
-**Exit criteria:** Acceptance criterion 8.3 met.
+**Exit criteria:** Acceptance criteria AC4.1–AC4.3 met.
 
 ---
 
 ### Phase 5 — Add LilyPond adapter
 
-**SPEC reference:** §5.4.
+**SPEC reference:** §5 Phase 5, §3.7 T2 (mandatory `-dpoint-and-click=#f`).
 **Effort:** 2–3 hours.
 **Owner:** agent.
 **Depends on:** Phase 2 done. Pre-flight check 5 (which lilypond).
@@ -555,32 +555,32 @@ Test sandbox: `_RENDER_TEST_lilypond.md` with a simple melody and a
 short lead sheet.
 
 **Verification specifics:**
-- `grep -c 'file://' out.svg` → 0 (acceptance criterion 8.4)
+- `grep -c 'file://' out.svg` → 0 (acceptance criterion AC5.2)
 
-**Exit criteria:** Acceptance criterion 8.4 met.
+**Exit criteria:** Acceptance criteria AC5.1–AC5.3 met.
 
 ---
 
 ### Phase 6 — Add RDKit adapter
 
-**SPEC reference:** §5.5.
+**SPEC reference:** §5 Phase 6.
 **Effort:** 2–3 hours.
 **Owner:** agent.
 **Depends on:** Phase 2 done. Pre-flight check 6 (`import rdkit`).
 
-Adapter implementation: pure Python, no shell-out. Use code from SPEC §5.5.
+Adapter implementation: pure Python, no shell-out. See PLAN Phase 6 task body below for the canonical implementation pattern.
 
 Test sandbox: `_RENDER_TEST_smiles.md` with caffeine, aspirin, and
 ibuprofen SMILES strings.
 
-**Exit criteria:** Acceptance criterion 8.5 met. Recognizable molecule
+**Exit criteria:** Acceptance criteria AC6.1–AC6.3 met. Recognizable molecule
 diagrams.
 
 ---
 
 ### Phase 7 — Apply SVG postprocessing hardening
 
-**SPEC reference:** §7.1, §7.3, §7.4.
+**SPEC reference:** §3.7 T3/T4/T5 (post-processing constraints), §5 Phase 7.
 **Effort:** 4–6 hours.
 **Owner:** agent.
 **Depends on:** Phase 2 done; Phases 3–6 produce SVGs to test against.
@@ -736,14 +736,14 @@ grep -c '"[0-9.]*pt"' mSB3-4_reals__1__*.svg    # → 0
 
 #### Exit criteria
 
-- Acceptance criteria 8.16, 8.17, 8.18 verified.
-- Visual dark mode test passes.
+- Acceptance criteria AC7.1, AC7.2, AC7.3 verified.
+- Visual dark mode test passes (AC7.5).
 
 ---
 
 ### Phase 8 — Plugin scaffold
 
-**SPEC reference:** §6.1, §6.2.
+**SPEC reference:** §3.4 (CodeBlock Processor Contract), §3.7 T7/T12, §5 Phase 8.
 **Effort:** 4–6 hours.
 **Owner:** agent.
 **Depends on:** Phase 2 done (cache schema known). Pre-flight 0.9–0.10.
@@ -802,7 +802,7 @@ export default class RenderCachePlugin extends Plugin {
         el: HTMLElement,
         ctx: MarkdownPostProcessorContext,
     ) {
-        // Implementation per SPEC §6.2
+        // Implementation per SPEC §3.4 (CodeBlock Processor Contract) and §3.6 (View-time data flow)
         ...
     }
 }
@@ -866,7 +866,7 @@ identical inputs. Add a fixture test.
 
 #### Exit criteria
 
-- Acceptance criterion 8.11 met for desktop.
+- Acceptance criteria AC8.1–AC8.7 met for desktop.
 - Plugin loads and registers all 5 codeblock processors.
 - Cache hit displays SVG; cache miss shows placeholder.
 
@@ -874,21 +874,21 @@ identical inputs. Add a fixture test.
 
 ### Phase 9 — Plugin commands and modes
 
-**SPEC reference:** §6.3, §6.4, §6.5.
+**SPEC reference:** §5 Phase 9 (acceptance criteria AC9.1–AC9.10).
 **Effort:** 4–6 hours.
 **Owner:** agent.
 **Depends on:** Phase 8.
 
-Tasks: implement all 7 commands from SPEC §6.4. Implement settings UI
-from §6.5. Implement mode switching from §6.3.
+Tasks: implement all 7 commands per SPEC §5 Phase 9 (acceptance criteria
+AC9.1–AC9.10). Implement settings UI and mode switching per the same.
 
-**Acceptance criteria covered:** 8.12, 8.13.
+**Acceptance criteria covered:** AC9.1–AC9.10.
 
 ---
 
 ### Phase 10 — Plugin error display + status bar
 
-**SPEC reference:** §6.6, §6.7.
+**SPEC reference:** §5 Phase 10 (acceptance criteria AC10.1–AC10.4).
 **Effort:** 2–3 hours.
 **Owner:** agent.
 **Depends on:** Phase 8.
@@ -896,13 +896,13 @@ from §6.5. Implement mode switching from §6.3.
 Tasks: implement inline error block rendering when index entry has
 captured a render error. Implement status bar item.
 
-**Acceptance criterion covered:** 8.21.
+**Acceptance criteria covered:** AC10.1–AC10.4.
 
 ---
 
 ### Phase 11 — iOS validation (USER-DRIVEN)
 
-**SPEC reference:** §1.1 (mobile crash motivation).
+**SPEC reference:** §1 (mobile crash motivation; goal G1), §5 Phase 11.
 **Effort:** 1–2 hours user time.
 **Owner:** user.
 **Depends on:** Phases 1, 7, 8 done. iCloud sync of `.obsidian/` to phone.
@@ -918,7 +918,7 @@ User-side test: open `kn/math/concepts/mSB5-2_partial.md` on phone.
 Open `kn/math/concepts/_TIKZ_TEST_mSB5-2.md` on phone (the original
 crash trigger).
 
-**Acceptance criteria:** 8.14 (no crash), 8.15 (math correctly
+**Acceptance criteria:** AC11.1, AC11.2 (no crash), AC11.4 (math correctly
 positioned).
 
 #### Task 11.3 — User reports findings
@@ -948,7 +948,7 @@ User chooses; logged in PROGRESS.md.
 
 ### Phase 12 — Migration tool: legacy → new layout
 
-**SPEC reference:** §3.3 (locations); acceptance criterion 8.19.
+**SPEC reference:** §3.8 (cache layout); acceptance criteria AC12.1–AC12.5.
 **Effort:** 2–3 hours.
 **Owner:** agent.
 **Depends on:** Phases 1, 8.
@@ -1002,7 +1002,7 @@ rm /Users/cs/Obsidian/_/attachments/cache/tikz/*.png
 
 #### Exit criteria
 
-- Acceptance criterion 8.19 met.
+- Acceptance criteria AC12.1–AC12.5 met.
 - Old layout cleaned up.
 
 ---
@@ -1026,7 +1026,7 @@ Deliverables:
 
 ### Phase 14 — OPTIONAL: gboyd068/SwiftLaTeX hands-on eval
 
-**SPEC reference:** §10.4, §11.8.
+**SPEC reference:** D10 (gboyd068 deferred-fallback rationale), OQ7 (mobile WASM fallback open question).
 **Effort:** ~1 hour.
 **Owner:** agent + user.
 **Depends on:** Phases 1–11 done. Only triggered if v1 has unresolved
@@ -1058,7 +1058,7 @@ START
   │       │ YES
   │       ▼
   │
-  ├─ Phase 1 verify (§8.1)?  ── FAIL ──► Stop. Troubleshoot dvisvgm.
+  ├─ Phase 1 verify (AC1.1–AC1.6)?  ── FAIL ──► Stop. Troubleshoot dvisvgm.
   │       │ PASS
   │       ▼
   ├─ Phase 2 done?           ── FAIL ──► Re-attempt restructure.
@@ -1067,7 +1067,7 @@ START
   ├─ Phases 3-6 (parallel)? ── ANY FAIL ──► Stop on that adapter. Triage.
   │       │ ALL PASS
   │       ▼
-  ├─ Phase 7 hardening verified (§8.16-18)? ── FAIL ──► Re-check regex rules.
+  ├─ Phase 7 hardening verified (AC7.1, AC7.2, AC7.3)? ── FAIL ──► Re-check regex rules.
   │       │ PASS
   │       ▼
   ├─ Phase 8 plugin loads?   ── FAIL ──► Check Obsidian dev console.
@@ -1095,28 +1095,27 @@ START
 
 ## Acceptance Criteria Traceability
 
-| Criterion | Verified in Phase |
-|---|---|
-| 8.1 (TikZ → SVG) | 1 |
-| 8.2 (Graphviz) | 3 |
-| 8.3 (D2) | 4 |
-| 8.4 (LilyPond) | 5 |
-| 8.5 (SMILES) | 6 |
-| 8.6 (idempotent re-run) | 1 + 2 |
-| 8.7 (--force) | 1 + 2 |
-| 8.8 (hash invalidation) | 2 |
-| 8.9 (renderer-version namespace) | 7 |
-| 8.10 (sweep) | 12 |
-| 8.11 (plugin display) | 8 |
-| 8.12 (refresh-block command) | 9 |
-| 8.13 (cache status) | 9 |
-| 8.14 (iOS no crash) | 11 |
-| 8.15 (iOS SVG fidelity) | 11 |
-| 8.16 (ID prefix) | 7 |
-| 8.17 (currentColor) | 7 |
-| 8.18 (viewBox) | 7 |
-| 8.19 (legacy migration) | 12 |
-| 8.20 (preamble hash cascade) | 2 + 7 |
+The new SPEC numbers acceptance criteria per phase as `ACX.Y` (X=phase, Y=criterion-within-phase).
+Final-acceptance checks are F1–F12 in SPEC §8.2. This table maps each criterion
+to the phase that verifies it.
+
+| Criterion | Subject | Verified in Phase |
+|---|---|---|
+| AC1.1 – AC1.6 | TikZ → SVG migration: render, path-only, refs updated, idempotent, --force | Phase 1 |
+| AC2.1 – AC2.8 | Package restructure: CLI, deprecation shim, normalization, hashing, index schema, key composition | Phase 2 |
+| AC3.1 – AC3.4 | Graphviz adapter: render, visual correctness, idempotence, render budget | Phase 3 |
+| AC4.1 – AC4.3 | D2 adapter: render, visual correctness, idempotence | Phase 4 |
+| AC5.1 – AC5.3 | LilyPond adapter: render, no `file://` URIs, visual correctness | Phase 5 |
+| AC6.1 – AC6.3 | SMILES adapter: render, recognizable molecule, error on invalid | Phase 6 |
+| AC7.1 – AC7.5 | SVG hardening: ID-prefix, currentColor, viewBox, no inter-block corruption, dark-mode follows | Phase 7 |
+| AC8.1 – AC8.7 | Plugin scaffold: load, cache-hit display, cache-miss placeholder, mobile placeholder, click-to-render, hash equivalence, source-mode preservation | Phase 8 |
+| AC9.1 – AC9.10 | Plugin commands and modes (all 7 commands, mode cycling, mobile auto-override, save trigger) | Phase 9 |
+| AC10.1 – AC10.4 | Inline error display + status bar | Phase 10 |
+| AC11.1 – AC11.4 | iOS validation (user-driven): no crash, fidelity, sync | Phase 11 |
+| AC12.1 – AC12.5 | Legacy migration: dry-run, real run, refs updated, dir empty, no broken refs | Phase 12 |
+| AC13.1 – AC13.4 | Documentation: plugin README, package CLAUDE.md, root CLAUDE.md, PROGRESS.md | Phase 13 |
+| AC14.1 – AC14.2 | (Optional) gboyd068 eval | Phase 14 |
+| F1 – F12 | Final acceptance test (SPEC §8.2) — full end-to-end user journey across desktop and mobile | Post-Phase 13 |
 | 8.21 (inline error display) | 10 |
 
 ---
