@@ -33,7 +33,7 @@
 | Phase | Status | Started | Completed | Commit | Tests | Duration | Notes |
 |-------|--------|---------|-----------|--------|-------|----------|-------|
 | Phase 1 — Migration: PNG → SVG via dvisvgm | DONE | 2026-04-27 09:24 | 2026-04-27 12:30 | 84ccae5ac (CSS) + PROGRESS | 14/14 ✓ | ~3h gate-to-gate | v1 text-only SVG bug fixed via `--libgs=` (D1.6); v2 verified on disk. Desktop gate closed via CSS view-layer swap (D1.9-11) — brings forward Phase 8's cache-first viewer. User confirmed desktop + mobile. |
-| Phase 2 — Restructure into render_cache package | DONE (agent) | 2026-04-27 13:00 | 2026-04-27 13:15 | _pending atomic commit_ | 50/50 ✓ | ~15m | 10-module package + new CLI + deprecation shim. SPEC §3.9 16-char canonical hash adopted. 5 Phase 1 cache files re-keyed; 95 previously-uncached TikZ files now rendered (3 fail with pre-existing source bugs — not Phase 2 regressions). User gate: open ≥2 of the 5 reference files. |
+| Phase 2 — Restructure into render_cache package | DONE (agent) | 2026-04-27 13:00 | 2026-04-27 13:15 | 2aaf1f5b5 (code) + b20ee085c (PROGRESS) | 50/50 ✓ | ~15m | 10-module package + new CLI + deprecation shim. SPEC §3.9 16-char canonical hash adopted. 5 Phase 1 cache files re-keyed; 95 previously-uncached TikZ files now rendered (3 fail with pre-existing source bugs — not Phase 2 regressions). User gate: open ≥2 of the 5 reference files. |
 | Phase 3 — Add Graphviz adapter | Not Started | | | | | | 1–2h est. Parallelizable with 4–7 after Phase 2. |
 | Phase 4 — Add D2 adapter | Not Started | | | | | | 1–2h est. Parallelizable with 3,5–7. |
 | Phase 5 — Add LilyPond adapter | Not Started | | | | | | 2–3h est. Parallelizable. |
