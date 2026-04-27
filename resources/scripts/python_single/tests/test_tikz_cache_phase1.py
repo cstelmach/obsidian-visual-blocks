@@ -1,11 +1,16 @@
 """
-test_tikz_cache_phase1.py — Verifies Phase 1 (PNG → SVG via dvisvgm).
+test_tikz_cache_phase1.py — Verifies Phase 1 rendering invariants (PNG → SVG via dvisvgm).
 
 Reference: docs/specs/render-cache/SPEC.md §3.7 T1, PLAN.md Phase 1.
 
+After Phase 2 the rendering invariants (no-fonts, libgs detection, bbox flag,
+DVI output, timeouts, .svg filename) live in `render_cache/adapters/tikz.py`.
+The static tier therefore inspects the ADAPTER source, not the deprecated
+`tikz_cache.py` shim. The smoke tier invokes the new CLI (`render_cache.py`).
+
 Two tiers of tests:
-  - Static tier: parses tikz_cache.py source, checks constants and call sites.
-  - Smoke tier: invokes the script against a real cached file and verifies the
+  - Static tier: parses the adapter source, checks constants and call sites.
+  - Smoke tier: invokes the CLI against a real cached file and verifies the
                 produced SVG. Marked `@pytest.mark.slow` and gated by the
                 presence of dvisvgm + lualatex (skipped otherwise).
 
@@ -24,7 +29,8 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path("/Users/cs/Obsidian/_/resources/scripts/python_single/tikz_cache.py")
+ADAPTER = Path("/Users/cs/Obsidian/_/resources/scripts/python_single/render_cache/adapters/tikz.py")
+CLI = Path("/Users/cs/Obsidian/_/resources/scripts/python_single/render_cache.py")
 SMOKE_MD = Path("/Users/cs/Obsidian/_/kn/math/concepts/mSB3-4_reals.md")
 CACHE_DIR = Path("/Users/cs/Obsidian/_/attachments/cache/tikz")
 
@@ -34,12 +40,12 @@ CACHE_DIR = Path("/Users/cs/Obsidian/_/attachments/cache/tikz")
 
 @pytest.fixture(scope="module")
 def source() -> str:
-    assert SCRIPT.exists(), f"Script not found: {SCRIPT}"
-    return SCRIPT.read_text(encoding="utf-8")
+    assert ADAPTER.exists(), f"Adapter not found: {ADAPTER}"
+    return ADAPTER.read_text(encoding="utf-8")
 
 
-def test_script_imports_cleanly(source: str) -> None:
-    """The file must be syntactically valid Python."""
+def test_adapter_imports_cleanly(source: str) -> None:
+    """The adapter file must be syntactically valid Python."""
     import ast
     ast.parse(source)  # raises SyntaxError on failure
 

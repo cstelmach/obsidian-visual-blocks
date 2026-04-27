@@ -2,10 +2,10 @@
 
 **Spec:** `/Users/cs/Obsidian/_/docs/specs/render-cache/SPEC.md`
 **Plan:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PLAN.md`
-**Status:** Phase 1 DONE (user gate closed via CSS view-layer swap); awaiting trigger for Phase 2
+**Status:** Phase 2 In Progress — restructuring `tikz_cache.py` into `render_cache/` package per PLAN §Phase 2.
 **Mode:** Manual (user-driven phase progression)
 **Started:** 2026-04-27
-**Last Updated:** 2026-04-27 12:30
+**Last Updated:** 2026-04-27 13:00
 
 > **Mode note:** PLAN.md L4 declares manual mode. SPEC §11.4 requires each
 > phase to end at a "Direct user feedback (gate)" before the next begins.
@@ -33,7 +33,7 @@
 | Phase | Status | Started | Completed | Commit | Tests | Duration | Notes |
 |-------|--------|---------|-----------|--------|-------|----------|-------|
 | Phase 1 — Migration: PNG → SVG via dvisvgm | DONE | 2026-04-27 09:24 | 2026-04-27 12:30 | 84ccae5ac (CSS) + PROGRESS | 14/14 ✓ | ~3h gate-to-gate | v1 text-only SVG bug fixed via `--libgs=` (D1.6); v2 verified on disk. Desktop gate closed via CSS view-layer swap (D1.9-11) — brings forward Phase 8's cache-first viewer. User confirmed desktop + mobile. |
-| Phase 2 — Restructure into render_cache package | Not Started | | | | | | 2–4h est. Depends on Phase 1. |
+| Phase 2 — Restructure into render_cache package | In Progress | 2026-04-27 13:00 | | | | | 2–4h est. Depends on Phase 1. |
 | Phase 3 — Add Graphviz adapter | Not Started | | | | | | 1–2h est. Parallelizable with 4–7 after Phase 2. |
 | Phase 4 — Add D2 adapter | Not Started | | | | | | 1–2h est. Parallelizable with 3,5–7. |
 | Phase 5 — Add LilyPond adapter | Not Started | | | | | | 2–3h est. Parallelizable. |
