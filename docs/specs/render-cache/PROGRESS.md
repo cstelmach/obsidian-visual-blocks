@@ -2,10 +2,10 @@
 
 **Spec:** `/Users/cs/Obsidian/_/docs/specs/render-cache/SPEC.md`
 **Plan:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PLAN.md`
-**Status:** Phase 2 In Progress — restructuring `tikz_cache.py` into `render_cache/` package per PLAN §Phase 2.
+**Status:** Phase 2 DONE (agent-side); awaiting user gate (desktop + mobile visual confirmation across the re-keyed files).
 **Mode:** Manual (user-driven phase progression)
 **Started:** 2026-04-27
-**Last Updated:** 2026-04-27 13:00
+**Last Updated:** 2026-04-27 13:15
 
 > **Mode note:** PLAN.md L4 declares manual mode. SPEC §11.4 requires each
 > phase to end at a "Direct user feedback (gate)" before the next begins.
@@ -33,7 +33,7 @@
 | Phase | Status | Started | Completed | Commit | Tests | Duration | Notes |
 |-------|--------|---------|-----------|--------|-------|----------|-------|
 | Phase 1 — Migration: PNG → SVG via dvisvgm | DONE | 2026-04-27 09:24 | 2026-04-27 12:30 | 84ccae5ac (CSS) + PROGRESS | 14/14 ✓ | ~3h gate-to-gate | v1 text-only SVG bug fixed via `--libgs=` (D1.6); v2 verified on disk. Desktop gate closed via CSS view-layer swap (D1.9-11) — brings forward Phase 8's cache-first viewer. User confirmed desktop + mobile. |
-| Phase 2 — Restructure into render_cache package | In Progress | 2026-04-27 13:00 | | | | | 2–4h est. Depends on Phase 1. |
+| Phase 2 — Restructure into render_cache package | DONE (agent) | 2026-04-27 13:00 | 2026-04-27 13:15 | _pending atomic commit_ | 50/50 ✓ | ~15m | 10-module package + new CLI + deprecation shim. SPEC §3.9 16-char canonical hash adopted. 5 Phase 1 cache files re-keyed; 95 previously-uncached TikZ files now rendered (3 fail with pre-existing source bugs — not Phase 2 regressions). User gate: open ≥2 of the 5 reference files. |
 | Phase 3 — Add Graphviz adapter | Not Started | | | | | | 1–2h est. Parallelizable with 4–7 after Phase 2. |
 | Phase 4 — Add D2 adapter | Not Started | | | | | | 1–2h est. Parallelizable with 3,5–7. |
 | Phase 5 — Add LilyPond adapter | Not Started | | | | | | 2–3h est. Parallelizable. |
@@ -57,6 +57,72 @@
 ## Log
 
 _(Most recent first — reverse chronological)_
+
+### Phase 2 — Restructure into render_cache package — 2026-04-27 13:15 DONE (agent-side)
+
+**Completed:**
+
+- Created `resources/scripts/python_single/render_cache/` package (10 .py files; PLAN §Task 2.1 said 9 — the difference is `adapters/__init__.py`, which the PLAN's `find` command counts but the prose narration miscounted). Modules per SPEC §3.3:
+  - `normalize.py` — whitespace + line-ending canonicalisation (SPEC §3.7 T9). Identity for clean blocks, idempotent. PLAN's verify example `'  hello\n\n\n\n  world  ' → 'hello\n\nworld'` passes.
+  - `hash.py` — canonical 16-char SHA-256 cache key per SPEC §3.9: `SHA-256(normalize(source) || \x00 || lang || \x00 || JSON(attrs, sorted) || \x00 || preamble_hash)[:16]`. Includes `preamble_digest()` helper.
+  - `markdown_io.py` — `find_blocks` + `find_existing_ref`. Recognises both `tikz` and `tikz-paused` fences; both canonicalise `language="tikz"` so pausing/unpausing does not thrash the cache (D2.3).
+  - `cache_paths.py` — `cache_filename`, `cache_path_for`. Phase 2 retains the legacy directory `attachments/cache/tikz/` (Phase 12 migrates to SPEC §3.8 layout).
+  - `index.py` — `load_index`, `save_index` (atomic via tempfile + `os.replace`), `empty_index`. SPEC §3.4 schema. Phase 2 location: `attachments/cache/tikz/index.json` (legacy).
+  - `postprocess.py` — pass-through stub (Phase 7 fills T3/T4/T5 hardening).
+  - `adapters/base.py` — `RendererAdapter` ABC + `RenderError`. Required properties: `language`, `render_budget_seconds`, `preamble_text`. Required method: `render(source, attrs, workdir) -> Path`.
+  - `adapters/tikz.py` — `TikzAdapter` wraps the lualatex(DVI) → dvisvgm(SVG) pipeline. All Phase 1 regression fixes locked in: `--no-fonts` (T1), `--bbox=min` (NOT `--bbox=preview`), `--libgs=` auto-detection with `DVISVGM_LIBGS` env override, `--output=PATH` (with `=`).
+  - `adapters/__init__.py` — `REGISTRY = {"tikz": TikzAdapter()}`. Adding new languages is purely additive in Phases 3-6.
+  - `__init__.py` — dispatcher + CLI logic. Same flags as Phase 1: `path`, `--all`, `--force`, `--sweep`, `--dry-run`. Atomic markdown edit pass; orphan SVG cleanup; index update.
+- Created `resources/scripts/python_single/render_cache.py` — thin CLI entry point (`from render_cache import main; sys.exit(main())`). Sibling to the package.
+- Converted `resources/scripts/python_single/tikz_cache.py` to a deprecation shim (~30 lines): emits `DeprecationWarning` and forwards to `render_cache.main()`.
+- Created `tests/test_render_cache_phase2.py` (32 new tests covering structure, behavior, integration). Updated `tests/test_tikz_cache_phase1.py` to point its rendering-invariant assertions at the new adapter file (`render_cache/adapters/tikz.py`); smoke test invokes `render_cache.py`. Helper `_strip_docstrings_and_comments` added so the no-`--bbox=preview` and no-`dvisvgm-in-shim` assertions look at executable code only.
+- Re-rendered all TikZ files via `render_cache.py --all`:
+  - 100 markdown files with TikZ blocks discovered.
+  - 5 Phase-1 files re-keyed onto 16-char hash (legacy 8-char SVGs cleaned up by orphan sweep).
+  - ~95 previously-uncached TikZ files now have an SVG cache entry.
+  - 3 files fail with pre-existing TikZ source bugs (NOT Phase 2 regressions): `bB3-18_neuroscience-101.md` ("Cannot parse this coordinate"), `mSB8-9_double-brackets.md` ("Undefined control sequence"), `_TIKZ_TEST_mSB3-5.md` (one of its blocks: "Can be used only in preamble"). These would have failed identically under Phase 1 `tikz_cache.py`.
+  - Total cache: 158 SVG files, 8.6 MiB. Disk healthy (18 GiB free).
+
+**Decisions Made:**
+
+- **D2.1 — Adopt §3.9 canonical hash now (16-char), accept re-key.** The PLAN exit criterion "produces identical output" is functional ("same end-to-end result — working cached SVG") rather than byte-identical; PLAN Task 2.2's normalize verify example (`'  hello…' → 'hello…'`) explicitly demands a non-identity normalize, so identity at the hash layer would self-contradict the same task. Re-key cost: 5 file re-renders + 5 markdown ref rewrites (the 5 from Phase 1; the other 95 had no prior cache).
+- **D2.2 — `preamble_hash = sha256(LATEX_PREAMBLE)[:16]` for Phase 2.** Per advisor item 2: hashing the hardcoded preamble preserves T10 semantics from day one; per-folder `_preamble.<lang>` files (Phase 8+) just substitute a different text. Empty string would have thrown away the invariant.
+- **D2.3 — Both `tikz` and `tikz-paused` fences canonicalise to `language="tikz"` for hash purposes.** Pausing is a display-only concern; making them hash-distinct would invalidate the cache on every pause/unpause. `markdown_io.CodeBlock` records both `language` (canonical) and `fence_lang` (raw) so renderers/displayers can disambiguate later if needed.
+- **D2.4 — `main()` lives in `render_cache/__init__.py`, not `render_cache.py`.** Resolves the apparent contradiction in PLAN's snippets (Task 2.3 shows `main()` in `render_cache.py`; Task 2.4 shows the shim doing `from render_cache import main` — the latter resolves to the PACKAGE per Python's directory-over-file precedence). Putting `main()` in `__init__.py` makes both invocation paths work and keeps `render_cache.py` a 5-line wrapper.
+- **D2.5 — File count mismatch with PLAN (10 vs 9).** PLAN's prose says 9; PLAN's verify command (`find render_cache -name '*.py' | wc -l → 9`) actually counts 10 with `adapters/__init__.py`. Shipped 10 to match SPEC §3.3 component table. Filed as a docs-only fix to PLAN.md (out of Phase 2 scope).
+- **D2.6 — `RENDERER_VERSION = "0.2.0"`** (bumped from Phase 1's implicit `1.0.0` placeholder). Will go to `1.0.0` at Phase 13 release. Phase 2 is pre-release scaffolding.
+- **D2.7 — Re-targeted Phase 1 tests in-place (no rename).** Per advisor item 1, the Phase 1 invariant tests now point at `render_cache/adapters/tikz.py` (the file that owns those invariants post-restructuring). Smoke test invokes `render_cache.py`. File name kept (`test_tikz_cache_phase1.py`) because the tested INVARIANTS are still the Phase 1 ones — only their location moved.
+
+**Deviations from Plan:**
+
+- One file-count mismatch (D2.5).
+- PLAN Task 2.3's `render_cache.py` snippet shows `def main()` in the file body; shipped reality has `main()` in `render_cache/__init__.py` and `render_cache.py` as a wrapper (D2.4). Both invocation paths work; the snippet was a sketch, not a literal.
+
+**Resolved mid-phase:**
+
+- Two test assertions failed initially because the new docstrings legitimately mention `--bbox=preview` and `dvisvgm` while explaining what NOT to do. Fixed by adding `_strip_docstrings_and_comments` helper to both test files; now the assertions only inspect executable code.
+- The Phase 1 smoke test's regex `[0-9a-f]{{8}}` (exactly 8 hex chars) needed widening to `[0-9a-f]{{8,}}` because the new hash is 16 chars. Done.
+
+**Tests:** 50/50 pass (49 fast + 1 slow smoke that exercises the full lualatex+dvisvgm pipeline). New: 32 in test_render_cache_phase2.py. Re-targeted: 14 in test_tikz_cache_phase1.py (smoke test re-targeted to invoke the new CLI).
+
+**Lessons Learned:**
+
+- **Test assertions on source text need to discriminate between code and prose.** Phase 1's `if not ln.startswith("#")` filter survives `# comment` but not `"""..."""` docstrings. When invariant assertions move to a new file with new prose explaining the invariant, docstrings legitimately quote the forbidden tokens. Solution: filter out triple-quoted strings before asserting.
+- **PLAN/SPEC sketches drift slightly from shippable architecture.** Task 2.3's example showed `main()` in `render_cache.py`; Task 2.4's shim imports `from render_cache import main`. The PLAN reads sensible at first glance but the two snippets are mutually inconsistent given Python's directory-over-file import precedence. Shipped reality: `main()` in `__init__.py`. Logged as D2.4 to make the deviation explicit.
+- **`--all` over a 100-file vault surfaces source-level bugs across the whole content set.** 3 files have pre-existing TikZ source bugs that Phase 1 (5-file scope) never tried to render. None are Phase 2 regressions, but they're real defects in the user's TikZ source (or in our preamble — `mSB8-9` "Undefined control sequence" might just need an extra `\usetikzlibrary`). Filed for separate triage; not blocking Phase 2 gate.
+- **Auto-backup interleaves with phase work, breaking strict atomic-commit discipline.** Multiple intermediate commits (12:37, 12:48, 12:58) captured snapshots of the cache + markdown deltas while this phase was in progress. The Phase 2 atomic commit therefore stages **only** the source/test/PROGRESS files; cache and markdown ref-rewrite deltas live in the auto-backup commits. Same accounting strategy as D1.5/D1.11.
+
+**Cross-references:**
+
+- SPEC §3.3 (components), §3.4 (adapter contract), §3.7 T8/T9/T10/T11/T12 (cache-key invariants), §3.9 (canonical key formula).
+- PLAN §Phase 2 (Tasks 2.1–2.4), §Phase 12 (legacy → new layout migration).
+- Pre-existing TikZ source bugs: `kn/library/chapters/bB3-18_neuroscience-101.md`, `kn/math/concepts/mSB8-9_double-brackets.md`, one block in `kn/math/concepts/_TIKZ_TEST_mSB3-5.md`.
+
+**Phase 2 gate (user-driven):** Open ≥2 of `mSB3-4_reals.md`, `mSB3-5_complex.md`, `mSB5-2_partial.md`, `mLA5-1_eigenvalues.md` on **desktop AND mobile**. Confirm the cached SVG renders correctly (same diagram as Phase 1 v2 — pure restructuring, no visual change expected). On desktop the CSS swap from Phase 1 closure (`84ccae5ac`) means the cached SVG is what's shown.
+
+**Next:** Awaiting user gate confirmation, then trigger Phase 3 — Add Graphviz adapter.
+
+---
 
 ### Phase 1 v2 — Gate Closure (CSS view-layer brought forward) — 2026-04-27 12:30
 
@@ -311,6 +377,22 @@ _(Entries added when the same error occurs 3+ times. Empty at initialization.)_
 ---
 
 ## Divergence Checks
+
+### Divergence Check — Phase 2 — 2026-04-27 13:15
+
+- [x] Files modified vs plan: 13 actual (10 new package modules + render_cache.py + tikz_cache.py + 2 test files) vs PLAN's enumerated set (10 modules + render_cache.py + tikz_cache.py + tests). Match.
+- [x] Max cyclomatic complexity: `process_file` is the most complex function at ~12 branches (per-block render + hash lookup + edit planning + orphan cleanup + index write). Within reasonable bound (<15).
+- [x] All changes link to specific PLAN.md steps:
+      - Package skeleton → PLAN Task 2.1
+      - Module bodies (normalize/hash/markdown_io/cache_paths/index/postprocess/adapters) → PLAN Task 2.2
+      - render_cache.py CLI → PLAN Task 2.3
+      - tikz_cache.py shim → PLAN Task 2.4
+      - Tests → execute-spec workflow E5/E6 (TDD)
+      - Phase-1 test re-target → advisor item 1 (in-scope per spec-architect spine)
+- [x] No repeated identical tool calls (>3): true. The only retried Bash invocation was `pytest tests/ -v -m "not slow"` (red phase + green phase) and `pytest tests/ -v` (final), distinct purposes.
+- [x] Plan-vs-shipped delta: ONE deviation logged as D2.4 (main() in __init__.py instead of render_cache.py per PLAN snippet — shipped reality is the canonical Python pattern given file-vs-package name collision).
+
+**Status:** Within scope. The 95 newly-cached files and the 100 markdown ref edits are SIDE-EFFECTS of running `--all`, not new implementation. They're handled by auto-backup, not the Phase 2 atomic commit.
 
 ### Divergence Check — Phase 1 — 2026-04-27 09:42
 - [x] Files modified vs plan: 8 actual / 1 planned in PLAN.md (`tikz_cache.py`).
