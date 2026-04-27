@@ -58,6 +58,69 @@
 
 _(Most recent first — reverse chronological)_
 
+### Phase 5 — Add LilyPond adapter — 2026-04-27 (this session) DONE (agent-side)
+
+**Completed:**
+
+- **Pre-flight 5 (`which lilypond && lilypond --version`):** Initially failed — lilypond not installed. PLAN authorises `brew install lilypond`; asked user via `AskUserQuestion` (4-option gate, mirrors Phase 4 d2 install pattern); user chose "Install via brew (Recommended)". Result: `GNU LilyPond 2.26.0 (running Guile 3.0)` at `/opt/homebrew/bin/lilypond`. SPEC §5 minimum is ≥ 2.24 — passes.
+- **Smoke test before adapter:** Pre-verified PLAN's reference command on a minimal melody (`\relative c' { c d e f g a b c }`). Confirmed: cold-start wall-clock 0.43s; output `out.svg` (single-page, 6.3 KB); `grep -c 'file://'` = 0; viewBox + xmlns SVG structure. The benign `warning: ignoring unsupported formats (pdf)` on stderr is informational (we asked for `-dbackend=svg`, lilypond defaults to producing PDF too) — not a failure indicator. Lead-sheet smoke also clean (single-page, 0 `file://`).
+- **Adapter** — `resources/scripts/python_single/render_cache/adapters/lilypond.py`. ~95 lines. Wraps `lilypond -dpoint-and-click=#f -dbackend=svg -dno-include-book-title-preview -o {workdir}/out {src}` via `subprocess.run` with `timeout=30s`. `RenderError` raised on non-zero exit, missing output file (empty glob), timeout, or `FileNotFoundError`. Mirrors the D2 adapter's exception model (D4.x). LilyPond-specific complexity: output discovery via `sorted(workdir.glob("out*.svg"))` rather than direct path return (lilypond names outputs `out.svg` for single-page, `out-1.svg` / `out-page1.svg` etc. for multi-page; pick the first hit).
+- **Registry** — `adapters/__init__.py` now imports + registers `LilyPondAdapter()` alongside `TikzAdapter()`, `GraphvizAdapter()`, and `D2Adapter()`. Four-language registry.
+- **markdown_io** — `BLOCK_RE` alternation extended `tikz(?:-paused)?|graphviz|d2` → `tikz(?:-paused)?|graphviz|d2|lilypond`. `_FENCE_TO_LANG` map gained `"lilypond": "lilypond"`. Module docstring updated to acknowledge Phase 5 reach (Phase 6 still ahead).
+- **Dispatcher fence-tag list** — `render_cache/__init__.py:find_all_md_with_blocks.fence_tags` extended to `("tikz", "tikz-paused", "graphviz", "d2", "lilypond")` (now 5 items). Without this, `--all` would have skipped LilyPond files entirely. Docstring updated to note D5.6 deferral of refactor.
+- **Test sandbox** — `kn/math/concepts/_RENDER_TEST_lilypond.md` with 2 LilyPond blocks per SPEC §5 ("a melody and a short lead sheet"): (1) `\relative c' { c4 d e f g a b c c b a g f e d c }` — C major scale up + down, 16 quarter notes, smallest meaningful musical phrase; (2) two-bar lead sheet with `\chordmode` chord names (C, F) over a `\new Staff` melody using the `<<` simultaneous-music idiom + explicit `\version "2.26.0"` + `\score { \layout { } }` block. Filename matches existing `_RENDER_TEST_*.md` convention.
+- **Tests** — `tests/test_lilypond_adapter.py` (15 tests: 12 fast + 3 slow). Fast tier: structure / contract / registry / `markdown_io` recognises `lilypond` fence + mixed `tikz`+`graphviz`+`d2`+`lilypond` block ordering / `find_all_md_with_blocks` includes lilypond / span correctness / TikZ + Graphviz + D2 adapters still present (regression guard) / **`-dpoint-and-click=#f` source-text presence guard** (T2 invariant — strips docstrings/comments before grepping per the Phase 1/2 helper pattern). Slow tier: actually invokes `lilypond` to render simple melody, asserts SVG XML structure + ≥5 `<path>` elements + **AC5.2 hard check (`text.count("file://") == 0`)**; second integration test verifies the adapter raises `RenderError` on syntactically invalid LilyPond source (unbalanced braces); third runs the CLI end-to-end against the sandbox and asserts cache hit on second run (idempotence).
+- **CLI integration** — Slow test ran the CLI on the sandbox: 2 blocks rendered to `attachments/cache/tikz/_RENDER_TEST_lilypond__{1,2}__<hash16>.svg`. Block 1 (C-major scale): 9.6 KB, 18 `<path>` elements (note heads + stems + clef glyph + barlines). Block 2 (lead sheet, 2 bars): 7.3 KB, 11 `<path>` elements (smaller because shorter, but with chord-name text glyphs). **`grep -c 'file://'` returns 0 for both files** — AC5.2 verified at agent level. Second run confirmed two "cache hit" reports.
+- **Index.json** — `attachments/cache/tikz/index.json` now carries `_RENDER_TEST_lilypond.md` with 2 blocks at language `lilypond` and the 16-char canonical SHA-256 hashes verified above.
+
+**Decisions Made:**
+
+- **D5.1 — Wikilink alt-tag stays `tikz-cache` for LilyPond too.** Reaffirms D3.1 / D4.1. Per SPEC OQ9 the rename to `render-cache` is deferred to Phase 12 migration. Using a different alt-tag for lilypond now would split the migration work without UI benefit (Phase 8 plugin handles display anyway).
+- **D5.2 — `LilyPondAdapter.preamble_text` returns `""`.** Reaffirms D3.2 / D4.2. LilyPond source is self-contained; no preamble concept. `\version` declarations live inside individual source blocks. `preamble_digest("")` is elided cleanly from the SPEC §3.7 T10 cache key. Per-folder `\paper` / global preamble overrides are a Phase 8+ concern, not v1.
+- **D5.3 — `render_budget_seconds = 30`.** PLAN was silent on the value. Smoke-tested cold-start at 0.43s for a minimal melody and ~0.6s for a lead sheet; LilyPond's first compile is fast because Guile is already JITted by the time it hits engraving. 30s gives generous headroom for complex multi-stave scores while still surfacing pathological hangs (vs lualatex's 60s). `LILYPOND_TIMEOUT_S = 30` constant in the adapter for symmetry with `D2_TIMEOUT_S` / `DOT_TIMEOUT_S` / `LUALATEX_TIMEOUT_S` / `DVISVGM_TIMEOUT_S`.
+- **D5.4 — All four CLI flags declared explicitly: `-dpoint-and-click=#f -dbackend=svg -dno-include-book-title-preview -o <prefix>`.** Per PLAN reference command. `-dpoint-and-click=#f` is mandatory per SPEC T2/AC5.2 (without it, `file://` URIs are baked into output). `-dbackend=svg` overrides lilypond's default of producing PDF + PostScript; the benign `warning: ignoring unsupported formats (pdf)` confirms this took effect. `-dno-include-book-title-preview` strips the auto-generated title block — notes only. `-o <prefix>` is a prefix not a filename: lilypond appends `.svg` (or `-1.svg`, `-page1.svg` for multi-page).
+- **D5.5 — Output discovery via `sorted(workdir.glob("out*.svg"))[0]`.** PLAN's reference command was `next(workdir.glob("out*.svg"))`. Used `sorted(...)[0]` for determinism (across filesystems where dir-iteration order varies, e.g., HFS+ vs APFS, glob order is implementation-defined). `sorted` cost is O(N log N) on a directory with typically 1–3 entries → free. Multi-page handling (composing multiple SVGs into one cache entry) is **explicitly deferred to v1.1** — v1's test sandbox uses single-page inputs and the adapter returns the first match. The sandbox confirms this works (both blocks compile to single-page).
+- **D5.6 — Fence-tag list refactor: deferred ONE more phase, will land in Phase 6.** The Phase 3/4 lessons (D3.4/D4.5) flagged that "5 items is the threshold for the derive-from-REGISTRY refactor". Phase 5 added the 5th item. Reasoning for one more deferral: Phase 6 (RDKit/SMILES) adds the *final* v1 language; doing the refactor now (with 5 items) means writing it twice (once now, once when smiles lands), whereas doing it in Phase 6 with 6 items in view captures the full v1 alias surface (e.g., does smiles need any aliases like `tikz-paused`?) in one pass. Updated dispatcher docstring to mark this deferral explicitly so Phase 6 doesn't forget. *Net cost*: one more list-edit in Phase 6 (~1 line) + the abstraction lands in one cleaner pass.
+- **D5.7 — TDD red-then-green explicit.** Wrote `tests/test_lilypond_adapter.py` BEFORE any adapter code; ran `pytest -m "not slow"` to confirm 11/12 failures (the 1 pass was `test_registry_keeps_all_prior_adapters_intact` — trivially holds because phases 2/3/4 already wired those). Then implemented; same suite went 12/12 green; slow suite added 3/3 green for end-to-end confirmation. Same pattern as D3.5 / D4.6.
+
+**Deviations from Plan:**
+
+- **None of substance.** PLAN's reference command shipped verbatim. The `LILYPOND_TIMEOUT_S = 30` constant value (vs PLAN's silent default) is logged in D5.3. The `sorted(... glob ...)[0]` vs PLAN's `next(...)` is logged in D5.5. The deliberate one-more-phase deferral of the fence-tag refactor (D5.6) is a documented decision, not a slip.
+
+**Tests:** 15/15 Phase 5 (12 fast + 3 slow). Full suite (fast + slow) 93/93 across all phases (14 Phase 1 + 36 Phase 2 + 14 Phase 3 + 14 Phase 4 + 15 Phase 5 = 93). No Phase 1 / Phase 2 / Phase 3 / Phase 4 regressions.
+
+**AC mapping:**
+
+- AC5.1 ✓ — `python3 render_cache.py _RENDER_TEST_lilypond.md` returns 0; 2 blocks rendered (slow integration test asserts this end-to-end).
+- AC5.2 ✓✓ — `grep -c 'file://'` returns 0 for both cache SVGs (verified at agent level via slow integration test AND manual disk grep). The mandatory T2 flag took effect.
+- AC5.3 — Visual gate (user confirms "music notation looks right"). User-driven; pending.
+
+**Lessons Learned:**
+
+- **The `out*.svg` glob pattern is the only structural difference from the D2/Graphviz adapter shape.** Otherwise LilyPondAdapter is the same flat `subprocess.run + RenderError` template that D3/D4 established. Phase 6 RDKit (pure-Python, no shellout) will be the genuinely different shape — the last v1 adapter is also the only one that breaks the subprocess pattern.
+- **Smoke-testing the renderer command BEFORE writing the adapter caught a wording detail in PLAN's stderr expectation.** The PLAN didn't mention the benign `warning: ignoring unsupported formats (pdf)` lilypond emits when `-dbackend=svg` is given. If the adapter had asserted on empty stderr (it doesn't — only on non-zero exit), this would have caused phantom failures. Adapter only checks `returncode != 0` + glob result; matches D3/D4 robustness.
+- **AC5.2's `grep file://` is a textbook contract test.** It's a single-character flag with a single-character outcome — but without the explicit assertion, a future "clean up the LilyPond flags" refactor could remove it silently. Both the source-text guard test (`test_lilypond_adapter_uses_point_and_click_off`) and the rendered-output check (`test_lilypond_adapter_renders_simple_melody`) catch the regression at different layers.
+- **Per-language pre-flight via `AskUserQuestion` continues to be the right pattern.** `brew install` is technically authorised by PLAN but counts as a system change. The 4-option gate (install / install-manually / skip / defer) preserves user agency. ~30s of user time. Phase 6 (RDKit) is `pip install rdkit` — same pattern, same gate.
+- **The dispatcher's existing generality continues to pay off.** `process_file` in `render_cache/__init__.py` did not need ANY edit for Phase 5 — same as Phase 3 and Phase 4. Three data declarations (REGISTRY, BLOCK_RE, fence_tags) + one new adapter file. The refactor cost per language is now flat at ~95 lines (~95 adapter — slightly more than D2/Graphviz because of the glob — + ~15 wiring). Phase 2's contract design has paid off across three sequential adapter additions.
+
+**Cross-references:**
+
+- SPEC §5 Phase 5 (AC5.1–AC5.3); §3.4 (RendererAdapter contract); §3.7 T2 (mandatory `-dpoint-and-click=#f`); §3.7 T8/T9/T10 (cache-key invariants); §11.4 (per-phase user-feedback gate).
+- PLAN §Phase 5 (reference command); §Phase 6 (RDKit — pure-Python adapter, no subprocess); §Phase 7 (postprocess hardening will run on lilypond outputs too); §Phase 12 (alt-tag rename per OQ9); fence-tag refactor deferred to Phase 6 per D5.6.
+- Phase 3 D3.x / Phase 4 D4.x — adapter exception model, preamble convention, TDD pattern, alt-tag deferral all reused here.
+
+**Phase 5 gate (user-driven):** Open the 2 rendered SVGs in Preview / QuickLook (or any SVG viewer). Confirm:
+- **Test 1 (`_RENDER_TEST_lilypond__1__6b94ee58569f56ca.svg`)**: 5-line treble-clef staff with a 4/4 time signature; 16 quarter notes ascending (C–D–E–F–G–A–B–C') then descending (C'–B–A–G–F–E–D–C); single bar line at the end. Notes should be cleanly engraved, no overlap.
+- **Test 2 (`_RENDER_TEST_lilypond__2__81531b1bd8dad5e7.svg`)**: Two staves stacked vertically — top is a chord-name line ("C" for bar 1, "F" for bar 2); bottom is a 5-line treble-clef staff with the melody (c4 g8 g a4 g | bes4 a g2). Bar line between bars. Both staves should be vertically aligned.
+
+`attachments/cache/tikz/_RENDER_TEST_lilypond__{1,2}__<hash>.svg` are the files to open.
+
+**Reading-mode note:** Same as Phase 3 / Phase 4 — opening `_RENDER_TEST_lilypond.md` in Obsidian Reading mode will show both the LilyPond codeblock *and* the SVG stacked, because there is no `.block-language-lilypond` hide rule until Phase 8 plugin lands. Use Preview / QuickLook for the gate.
+
+**Next:** Awaiting user gate confirmation, then trigger Phase 6 — Add RDKit adapter (parallelizable; Phase 6 is the last v1 language adapter, and is pure-Python so no `brew install` step).
+
+---
+
 ### Phase 4 — Gate Closure — 2026-04-27 (this session)
 
 **User confirmation (gate type: visual-confirmed):** "User gate passed. all three images confirmed in Quicklook" — user opened `attachments/cache/tikz/_RENDER_TEST_d2__{1,2,3}__<hash16>.svg` in Preview / QuickLook and confirmed visual fidelity for the three D2 blocks (simple 3-node graph, D2-specific shapes with dashed edge, nested containers with cross-container hand-off edge).
