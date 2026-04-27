@@ -1,0 +1,35 @@
+{
+  "name": "obsidian-render-cache",
+  "version": "0.1.0",
+  "description": "Cache-first viewer for TikZ/Graphviz/D2/LilyPond/SMILES code blocks in Obsidian.",
+  "main": "main.js",
+  "scripts": {
+    "build": "node esbuild.config.mjs production",
+    "dev": "node esbuild.config.mjs",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+  },
+  "keywords": [
+    "obsidian",
+    "tikz",
+    "graphviz",
+    "d2",
+    "lilypond",
+    "smiles",
+    "svg",
+    "cache"
+  ],
+  "author": "cstelmach",
+  "license": "MIT",
+  "type": "module",
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.30",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "0.20.2",
+    "jest": "^29.7.0",
+    "obsidian": "^1.4.16",
+    "ts-jest": "^29.1.2",
+    "tslib": "2.6.2",
+    "typescript": "5.4.3"
+  }
+}

@@ -1,0 +1,81 @@
+/* obsidian-render-cache — view styles for cached SVG blocks and placeholders.
+ *
+ * Wikilink-vs-plugin coexistence:
+ *   The Phase 1 v2 author-time pipeline inserts ![[…|tikz-cache]] wikilinks
+ *   in the markdown after each rendered block. Obsidian renders those as
+ *   <img alt="tikz-cache" …>. Once this plugin is active, its codeblock
+ *   processor produces its own <img class="render-cache-img" alt="<lang>-cache">.
+ *   Without the rule below the user would see two stacked images. The
+ *   :not() selector hides the wikilink-rendered images while the higher-
+ *   specificity .render-cache-img rule keeps the plugin's images visible.
+ *
+ *   Specificity: img[alt~="tikz-cache"]:not(.render-cache-img) is (0,2,1)
+ *   which beats the legacy .obsidian/snippets/tikz-cache.css rule
+ *   (img[alt~="tikz-cache"], (0,1,1)) regardless of load order, so the
+ *   plugin's display owns the page when enabled, and the snippet's rules
+ *   reassert when the plugin is disabled.
+ */
+
+img[alt~="tikz-cache"]:not(.render-cache-img) {
+    display: none;
+}
+
+/* Re-show codeblock wrappers for the languages we handle. The legacy
+ * snippet .obsidian/snippets/tikz-cache.css hides .block-language-tikz
+ * to suppress TikZJax; with this plugin handling the same fences, that
+ * rule would also hide our rendered output. Body prefix lifts specificity
+ * above the snippet's (0,0,1) → plugin (0,0,2) wins. */
+body .block-language-tikz,
+body .block-language-graphviz,
+body .block-language-d2,
+body .block-language-lilypond,
+body .block-language-smiles {
+    display: block;
+}
+
+.render-cache-block {
+    text-align: center;
+    margin: 1em auto;
+}
+
+.render-cache-block img {
+    max-width: 100%;
+    height: auto;
+    display: inline-block;
+}
+
+.render-cache-placeholder {
+    border: 1px dashed var(--background-modifier-border);
+    border-radius: 6px;
+    padding: 1em 1.25em;
+    margin: 1em auto;
+    background: var(--background-secondary);
+    color: var(--text-muted);
+    font-family: var(--font-monospace);
+    font-size: 0.85em;
+    text-align: left;
+    white-space: pre-wrap;
+}
+
+.render-cache-placeholder.is-clickable {
+    cursor: pointer;
+}
+
+.render-cache-placeholder.is-clickable:hover {
+    background: var(--background-modifier-hover);
+}
+
+.render-cache-placeholder .render-cache-lang {
+    color: var(--text-accent);
+    font-weight: 600;
+}
+
+.render-cache-error {
+    border-left: 3px solid var(--text-error);
+    padding-left: 0.75em;
+    color: var(--text-error);
+    font-family: var(--font-monospace);
+    font-size: 0.85em;
+    margin: 1em 0;
+    white-space: pre-wrap;
+}

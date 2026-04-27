@@ -26,7 +26,7 @@ import pytest
 
 from render_cache.hash import compute_key
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 FIXTURE_PATH = (
     REPO_ROOT
     / ".obsidian"
