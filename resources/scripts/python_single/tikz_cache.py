@@ -45,6 +45,28 @@ SCAN_ROOTS = [VAULT_ROOT / "kn"]
 LUALATEX_TIMEOUT_S = 90
 DVISVGM_TIMEOUT_S = 60
 
+# dvisvgm distributed via TeX Live is built without libgs / MuPDF, so it
+# silently drops the PostScript specials that TikZ emits — yielding an SVG
+# with text glyphs but no lines, ticks, or shapes. Pointing dvisvgm at a
+# Ghostscript shared library via --libgs= restores PostScript-special
+# rendering. We auto-detect; users on systems where libgs lives elsewhere
+# can override with the DVISVGM_LIBGS env var.
+import os as _os
+
+_LIBGS_ENV = _os.environ.get("DVISVGM_LIBGS")
+_LIBGS_CANDIDATES = (
+    _LIBGS_ENV,
+    "/opt/homebrew/lib/libgs.dylib",          # Apple Silicon brew
+    "/usr/local/lib/libgs.dylib",             # Intel macOS brew
+    "/usr/lib/x86_64-linux-gnu/libgs.so",     # Debian / Ubuntu
+    "/usr/lib64/libgs.so",                    # RHEL / CentOS 64-bit
+    "/usr/lib/libgs.so",                      # generic Linux
+)
+LIBGS_PATH: str | None = next(
+    (p for p in _LIBGS_CANDIDATES if p and Path(p).exists()),
+    None,
+)
+
 LATEX_PREAMBLE = textwrap.dedent(r"""
     \documentclass[border=4pt]{standalone}
     \usepackage{pgfplots}
@@ -161,16 +183,26 @@ def render_tikz(block: str, output_svg: Path, work_dir: Path) -> tuple[bool, str
         return False, f"lualatex failed: {snippet[:200]}"
 
     # 2. Convert DVI → SVG. Mandatory flag: --no-fonts (SPEC §3.7 T1).
-    #    --exact-bbox + --bbox=preview: tight crop matches \documentclass{standalone}.
+    #    --bbox=min: tight cropping by tracing actual content (modern
+    #    replacement for the deprecated --exact-bbox). Do NOT combine with
+    #    bbox=preview (that flag is for the LaTeX `preview` package — wrong
+    #    for `standalone` and produces a degenerate clipped bbox).
+    #    --libgs=<lib>: required so TikZ's PostScript-special drawing
+    #    commands (lines, circles, paths) are rendered. Without libgs,
+    #    dvisvgm produces text-only SVGs with all geometry missing.
+    cmd = [
+        "dvisvgm",
+        "--no-fonts",
+        "--bbox=min",
+        f"--output={output_svg}",
+    ]
+    if LIBGS_PATH:
+        cmd.insert(1, f"--libgs={LIBGS_PATH}")
+    cmd.append(str(dvi_path))
+
     try:
         result = subprocess.run(
-            ["dvisvgm",
-             "--no-fonts",
-             "--exact-bbox",
-             "--bbox=preview",
-             f"--output={output_svg}",
-             str(dvi_path)],
-            capture_output=True, text=True, timeout=DVISVGM_TIMEOUT_S,
+            cmd, capture_output=True, text=True, timeout=DVISVGM_TIMEOUT_S,
         )
     except subprocess.TimeoutExpired:
         return False, "dvisvgm timeout"
@@ -179,6 +211,14 @@ def render_tikz(block: str, output_svg: Path, work_dir: Path) -> tuple[bool, str
 
     if result.returncode != 0 or not output_svg.exists():
         return False, f"dvisvgm failed: {result.stderr.strip()[:200]}"
+    if not LIBGS_PATH:
+        # No libgs found → SVG will be missing TikZ graphics. Soft-fail with
+        # a diagnostic so the caller can surface it.
+        return False, (
+            "dvisvgm produced an SVG, but no Ghostscript library was found. "
+            "TikZ shapes (lines, circles, paths) will be missing. Install "
+            "ghostscript (brew install ghostscript) or set DVISVGM_LIBGS."
+        )
 
     return True, None
 

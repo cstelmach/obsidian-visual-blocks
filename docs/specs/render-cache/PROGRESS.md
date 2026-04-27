@@ -2,10 +2,10 @@
 
 **Spec:** `/Users/cs/Obsidian/_/docs/specs/render-cache/SPEC.md`
 **Plan:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PLAN.md`
-**Status:** Phase 1 agent-side complete; awaiting USER iOS gate (Task 1.6) before Phase 2
+**Status:** Phase 1 agent-side complete (FIXED post-gate-failure regression); awaiting USER re-gate
 **Mode:** Manual (user-driven phase progression)
 **Started:** 2026-04-27
-**Last Updated:** 2026-04-27 09:42
+**Last Updated:** 2026-04-27 11:30
 
 > **Mode note:** PLAN.md L4 declares manual mode. SPEC §11.4 requires each
 > phase to end at a "Direct user feedback (gate)" before the next begins.
@@ -32,7 +32,7 @@
 
 | Phase | Status | Started | Completed | Commit | Tests | Duration | Notes |
 |-------|--------|---------|-----------|--------|-------|----------|-------|
-| Phase 1 — Migration: PNG → SVG via dvisvgm | DONE (agent) | 2026-04-27 09:24 | 2026-04-27 09:42 | _pending_ | 12/12 ✓ | ~18 min | Agent-side complete. **USER iOS gate (Task 1.6) pending before Phase 2.** |
+| Phase 1 — Migration: PNG → SVG via dvisvgm | DONE (agent, v2) | 2026-04-27 09:24 | 2026-04-27 11:30 | _pending_ | 14/14 ✓ | ~135 min | Initial v1 produced text-only SVGs (TikZ shapes invisible). Fixed via `--libgs=` (D1.6); v2 verified visually with rsvg-convert. **USER re-gate pending.** |
 | Phase 2 — Restructure into render_cache package | Not Started | | | | | | 2–4h est. Depends on Phase 1. |
 | Phase 3 — Add Graphviz adapter | Not Started | | | | | | 1–2h est. Parallelizable with 4–7 after Phase 2. |
 | Phase 4 — Add D2 adapter | Not Started | | | | | | 1–2h est. Parallelizable with 3,5–7. |
@@ -57,6 +57,63 @@
 ## Log
 
 _(Most recent first — reverse chronological)_
+
+### Phase 1 v2 — REGRESSION FIX: `--libgs=` for PostScript specials — 2026-04-27 11:30
+
+**User-gate failure (v1 SVGs):**
+- Desktop Obsidian: SVG load spinner ran 10+ minutes without rendering.
+- iOS Obsidian: only the LARGE text labels ("$\sqrt{2}$", "$\pi$", "$e$", "$\frac{1}{3}$", "No gaps anywhere") visible, all overlapping at the top of the canvas. No number line, ticks, circles, or callout box.
+
+**Diagnosis:**
+1. Reproduced the broken render with macOS QuickLook (CoreGraphics, same engine as iOS WebKit) AND with `rsvg-convert` (librsvg, different engine). Both showed text-only garbage. ⇒ The bug is in the SVG itself, not the renderer.
+2. Inspected the SVG structure: 75 `<use>` glyph references (text), 51 `<path>` elements, **0 `<circle>` / `<line>` / `<polyline>`**, only 2 tiny `<rect>` (sqrt-bar accents in the math glyphs). The 51 `<path>` elements were all part of glyph definitions, NOT the TikZ-drawn shapes.
+3. Compared dvisvgm bbox flag combinations on a stripped-down test DVI. All four `--exact-bbox` / `--bbox=min` / `--bbox=preview` / no-flag variants produced the SAME 92×13pt clipped output. Only `--bbox=papersize` produced a 493×164pt full bbox — but it ALSO had no TikZ shapes, just text.
+4. Ran `dvisvgm --list-specials` on `/Library/TeX/texbin/dvisvgm`:
+   ```
+   bgcolor color dvisvgm em html papersize pdf tpic
+   ```
+   **No `ps`/`psfile` handler.** TikZ in lualatex+DVI mode emits its drawing commands as PostScript specials. Without a `ps` special handler, dvisvgm silently drops them — text glyphs survive (handled internally), all geometry vanishes.
+5. `otool -L /Library/TeX/texbin/dvisvgm`: only links `libc++` and `libSystem`. The TeX Live `dvisvgm.universal-darwin` binary has NO statically-linked Ghostscript or MuPDF.
+6. dvisvgm has a `--libgs=PATH` option that runtime-dlopens a Ghostscript shared library. Brew already installed `ghostscript 10.07.0` (`/opt/homebrew/lib/libgs.dylib` symlink). Re-rendered with `--libgs=/opt/homebrew/lib/libgs.dylib`: graphic size jumped from 92×13pt to 484×152pt and `rsvg-convert` showed the full diagram (axis, ticks, labels, circles, arrows, callout). ✓
+7. Tried `dvisvgm --pdf` mode as alternative path: failed with "can't retrieve number of pages" — the TeX Live binary is also stripped of MuPDF. So `--libgs=` is the only available fix without a binary swap.
+
+**Code changes:**
+- Added `LIBGS_PATH` auto-detection at module import time, scanning a candidate list (Apple Silicon brew → Intel brew → Debian → RHEL → generic Linux). `DVISVGM_LIBGS` env var overrides.
+- Added `f"--libgs={LIBGS_PATH}"` to the dvisvgm invocation when detected.
+- Soft-fail with diagnostic message if `LIBGS_PATH is None` (the rendered SVG would be missing TikZ shapes).
+- Replaced `--exact-bbox --bbox=preview` with `--bbox=min`. The `--bbox=preview` flag is for the LaTeX `preview` package; with `standalone` it is wrong, and combined with `--exact-bbox` it produced a degenerate clipped bbox.
+- Added 2 regression tests (`test_libgs_path_detection_present`, `test_no_bbox_preview_flag`) plus a stronger `path_count >= 50` assertion in the smoke test.
+
+**Re-rendered all 5 files. Comparison v1 (broken) → v2 (fixed):**
+
+| File | v1 size | v2 size | v1 paths | v2 paths | Visual |
+|---|---|---|---|---|---|
+| mSB3-4_reals | 42 KB | 50 KB | 49 | **86** | Number line, ticks, dots, callout — ALL VISIBLE ✓ |
+| mSB3-5_complex | 41 KB | 51 KB | 47 | **105** | Argand diagram, grid, vectors, conjugate — visible ✓ |
+| mSB5-2_partial | 25 KB | 376 KB | 25 | **1740** | 3D surface mesh (densely sampled) — visible ✓ |
+| mLA5-1_eigenvalues__1 | 38 KB | 44 KB | 40 | **71** | Eigenvector vs non-eigen demo — visible ✓ |
+| mLA5-1_eigenvalues__2 | 31 KB | 35 KB | 32 | **59** | Rotation matrix (no real eigenvectors) — visible ✓ |
+
+mSB5-2_partial blew up to 376 KB / 1740 paths because pgfplots tessellates the 3D surface into many small polygons. Acceptable for v1; Phase 7's SVGO postprocess (deferred to v1.1 in current PLAN; possibly worth pulling in earlier) could reduce.
+
+**Decisions Made:**
+- **D1.6 (rooted in user gate failure):** Hardcode `/opt/homebrew/lib/libgs.dylib` is fragile. Implemented a candidate list with `DVISVGM_LIBGS` env var override — covers macOS (both archs), Debian/Ubuntu, RHEL/CentOS, generic Linux without per-host config.
+- **D1.7:** When `LIBGS_PATH is None`, `render_tikz` returns `(False, diagnostic_msg)` rather than producing a broken SVG silently. This is a hard guardrail: no broken cache files, ever.
+- **D1.8 (PLAN drift):** PLAN.md Task 1.2 told us to use `--exact-bbox --bbox=preview`. Both flags were wrong. PLAN.md should be updated to read `--bbox=min --libgs=$DVISVGM_LIBGS_OR_DETECTED`. Filed under "Common Errors & Solutions" below; PLAN edit is a separate docs commit (out of Phase 1 scope).
+
+**Tests:** 14/14 pass in 0.88s (12 static + 2 regression + 1 smoke; 1 lualatex-timeout marker test counts as static here).
+
+**Lessons Learned:**
+- **dvisvgm distributed via TeX Live is functionally crippled for TikZ.** It has neither libgs nor MuPDF compiled in; it only handles glyph specials. A standalone install (or runtime-dlopen via `--libgs=`) is required for any non-trivial TikZ.
+- **dvisvgm fails silently on dropped specials.** No warning, no nonzero exit. The output SVG looks plausible (correct file size, valid XML, visible text). Detecting this regression required visual diff + counting `<path>` elements.
+- **PLAN-table assertions need execution-time verification.** PLAN said "dvisvgm available via TeX Live" — incomplete; the binary exists but is missing critical capabilities. Future SPEC pre-flights should `dvisvgm --list-specials | grep -E 'ps|pdf'` to prove rendering capability, not just `which dvisvgm`.
+
+**Next:**
+1. **YOU:** Re-open `mSB3-4_reals.md` (or any of the 4 others) on **desktop Obsidian** — verify the new v2 SVG renders the actual diagram (number line + dots + callout, not text-only).
+2. **YOU:** After iCloud sync, re-test on **iOS Obsidian**.
+3. **YOU:** Reply with "v2 SVGs render correctly on desktop and iOS" → I trigger Phase 2.
+
+---
 
 ### Phase 1 — Migration: PNG → SVG via dvisvgm — 2026-04-27 09:42 DONE (agent-side)
 
@@ -254,6 +311,8 @@ _(Entries added when the same error occurs 3+ times. Empty at initialization.)_
 - **PLAN "Pre-Plan State" table claimed `/Library/TeX/texbin/dvisvgm` was present (2026-04-27).** It was not — TeX Live BASIC scheme installed, dvisvgm excluded. Resolution: run `which dvisvgm` BEFORE trusting any plan table, and resolve via `sudo tlmgr install dvisvgm` (preferred over brew because it adds to the existing TL install instead of duplicating it). Sibling tools `dvilualatex`, `dvips`, `dvipdfm` being present does NOT imply dvisvgm is present.
 - **dvisvgm 3.4.3 requires `--output=PATH` (with `=`)** — `--output PATH` (space-separated) errors with `option --output: string argument 'pattern' expected`. Same convention likely applies to other dvisvgm long options that take values. Use the equals form everywhere when calling dvisvgm from subprocess.
 - **TeX Live 2025 frozen-release tlmgr defaults to FTP mirror that may 404.** `tlmgr install <pkg>` against the default frozen repository (`ftp://tug.org/historic/...`) failed with download_file error. Fix: explicit `--repository https://ftp.math.utah.edu/pub/tex/historic/systems/texlive/2025/tlnet-final` (verified working).
+- **TeX Live's dvisvgm binary has no libgs / no MuPDF — silently drops TikZ graphics.** `dvisvgm --list-specials` shows no `ps`/`psfile` handler. `otool -L /Library/TeX/texbin/dvisvgm` shows only libc++/libSystem linkage. Symptom: SVG renders text labels but no lines, circles, ticks, paths. Fix: pass `--libgs=/opt/homebrew/lib/libgs.dylib` (Apple Silicon brew ghostscript, runtime-dlopened). For other systems use `DVISVGM_LIBGS` env or extend the candidate list in `tikz_cache.py:LIBGS_PATH`. Future SPEC pre-flights: add `dvisvgm --list-specials | grep -E '^(ps|pdf)\b'` to prove rendering capability.
+- **Never combine `--exact-bbox` with `--bbox=preview` in dvisvgm.** `--bbox=preview` is for the LaTeX `preview` package, not `standalone`. With `standalone` it produces a degenerate clipped bbox (~13pt high). Use `--bbox=min` (modern equivalent of the deprecated `--exact-bbox`) and DO NOT pass any preview flag.
 
 ---
 

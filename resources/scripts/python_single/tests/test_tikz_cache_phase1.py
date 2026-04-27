@@ -83,6 +83,27 @@ def test_dvisvgm_no_fonts_flag(source: str) -> None:
     )
 
 
+def test_libgs_path_detection_present(source: str) -> None:
+    """The script must detect a Ghostscript shared library and pass it via
+    --libgs=. Without libgs, dvisvgm silently drops TikZ's PostScript-special
+    drawing commands → text-only SVGs with no geometry. Regression: 2026-04-27.
+    """
+    assert "LIBGS_PATH" in source, "LIBGS_PATH detection must be present"
+    assert "--libgs=" in source, "--libgs= flag must appear in the dvisvgm invocation"
+    assert "DVISVGM_LIBGS" in source, "DVISVGM_LIBGS env override must be supported"
+
+
+def test_no_bbox_preview_flag(source: str) -> None:
+    """`--bbox=preview` is for the LaTeX `preview` package, NOT `standalone`.
+    Mixing it with `--exact-bbox` produces a degenerate 13pt bbox that clips
+    most TikZ content. Regression: 2026-04-27.
+    """
+    assert "--bbox=preview" not in source, (
+        "--bbox=preview is for the `preview` LaTeX package; we use `standalone`. "
+        "Use --bbox=min instead."
+    )
+
+
 def test_lualatex_dvi_output_format(source: str) -> None:
     """lualatex must emit DVI (not PDF) for dvisvgm to consume."""
     assert "-output-format=dvi" in source or "--output-format=dvi" in source, (
@@ -177,8 +198,14 @@ def test_smoke_render_produces_path_only_svg(tmp_path: Path) -> None:
         assert "<text" not in svg_text, (
             "SVG contains <text> — --no-fonts may not be applied"
         )
-        assert svg_text.count("<path") >= 1, (
-            "SVG has no <path> elements — render likely failed silently"
+        path_count = svg_text.count("<path")
+        # mSB3-4_reals draws an axis with arrowheads, 7 ticks, a curve, 4
+        # circle markers, 4 arrows, a rounded rectangle, dashed lines — many
+        # dozens of <path> elements. <50 means PostScript-specials weren't
+        # rendered (libgs missing or wrong --bbox flag); see 2026-04-27 fix.
+        assert path_count >= 50, (
+            f"SVG has only {path_count} <path> elements — TikZ geometry "
+            "appears not rendered. Check that LIBGS_PATH is detected."
         )
 
         # 4. Markdown ref was rewritten from .png to .svg
