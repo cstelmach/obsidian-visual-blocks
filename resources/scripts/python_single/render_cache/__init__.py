@@ -246,11 +246,15 @@ def sweep_orphans(dry_run: bool) -> int:
 def find_all_md_with_blocks() -> list[Path]:
     """Return markdown files containing at least one supported codeblock fence.
 
-    When Phase 5-6 add adapters, append their fence tag to ``fence_tags`` so
-    ``--all`` walks Markdown for the new language too.
+    When Phase 6 adds ``smiles``, append its fence tag to ``fence_tags`` so
+    ``--all`` walks Markdown for the new language too. (Phase 5 added
+    ``lilypond``; the list is now 5 items, which is the threshold the
+    Phase 3/4 lessons flagged for a derive-from-REGISTRY refactor —
+    deferred to Phase 6 as one final additive change so the refactor
+    lands with the full v1 language set in view, see PROGRESS D5.6.)
     """
     files: list[Path] = []
-    fence_tags = ("tikz", "tikz-paused", "graphviz", "d2")
+    fence_tags = ("tikz", "tikz-paused", "graphviz", "d2", "lilypond")
     for root in SCAN_ROOTS:
         for md in root.rglob("*.md"):
             try:

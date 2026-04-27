@@ -2,10 +2,10 @@
 
 **Spec:** `/Users/cs/Obsidian/_/docs/specs/render-cache/SPEC.md`
 **Plan:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PLAN.md`
-**Status:** Phase 4 DONE (agent-side); awaiting user gate (D2 visual confirmation). Phase 3 user gate closed this session.
+**Status:** Phase 4 user gate closed; Phase 5 (LilyPond) in progress.
 **Mode:** Manual (user-driven phase progression)
 **Started:** 2026-04-27
-**Last Updated:** 2026-04-27 (Phase 4 done, agent-side)
+**Last Updated:** 2026-04-27 (Phase 4 gate closed, Phase 5 starting)
 
 > **Mode note:** PLAN.md L4 declares manual mode. SPEC §11.4 requires each
 > phase to end at a "Direct user feedback (gate)" before the next begins.
@@ -35,8 +35,8 @@
 | Phase 1 — Migration: PNG → SVG via dvisvgm | DONE | 2026-04-27 09:24 | 2026-04-27 12:30 | 84ccae5ac (CSS) + PROGRESS | 14/14 ✓ | ~3h gate-to-gate | v1 text-only SVG bug fixed via `--libgs=` (D1.6); v2 verified on disk. Desktop gate closed via CSS view-layer swap (D1.9-11) — brings forward Phase 8's cache-first viewer. User confirmed desktop + mobile. |
 | Phase 2 — Restructure into render_cache package | DONE | 2026-04-27 13:00 | 2026-04-27 (gate closed) | 2aaf1f5b5 (code) + b20ee085c (PROGRESS) | 50/50 ✓ | ~15m | 10-module package + new CLI + deprecation shim. SPEC §3.9 16-char canonical hash adopted. 5 Phase 1 cache files re-keyed; 95 previously-uncached TikZ files now rendered (3 fail with pre-existing source bugs — not Phase 2 regressions). Gate (visual-confirmed by user, this session): cached SVGs render correctly desktop + mobile post-restructure. |
 | Phase 3 — Add Graphviz adapter | DONE | 2026-04-27 (Phase 3 begin) | 2026-04-27 (this session) | 1d0fe447b (code+tests+cache+PROGRESS, auto-backup-captured) | 14/14 ✓ + 60/60 fast suite | ~30m | New `GraphvizAdapter` (`dot -Tsvg`), REGISTRY+BLOCK_RE+`_FENCE_TO_LANG`+dispatcher fence-tag list extended. Sandbox `_RENDER_TEST_graphviz.md` (3 DOT blocks: simple digraph / labeled edges / clustered subgraph). Pre-flight `dot - graphviz version 14.1.5` (Apple Silicon brew). User gate closed this session ("All three visible in Preview / Quicklook"). |
-| Phase 4 — Add D2 adapter | DONE (agent) | 2026-04-27 (this session) | 2026-04-27 (this session) | (auto-backup pending) + PROGRESS commit | 14/14 ✓ + 71/71 fast suite | ~25m | New `D2Adapter` (`d2 --layout=elk --pad=20 --theme=0 --bundle=true`). Pre-flight: `d2 0.7.1` installed via `brew install d2` this session (PLAN per-language pre-flight policy authorised). REGISTRY/BLOCK_RE/`_FENCE_TO_LANG`/dispatcher fence-tag list extended (4 items). Sandbox `_RENDER_TEST_d2.md` (3 D2 blocks: simple graph / d2-specific shapes / nested containers). User gate: open `_RENDER_TEST_d2.md` cached SVGs in Preview/QuickLook; visual fidelity check. |
-| Phase 5 — Add LilyPond adapter | Not Started | | | | | | 2–3h est. Parallelizable. |
+| Phase 4 — Add D2 adapter | DONE | 2026-04-27 (this session) | 2026-04-27 (gate closed) | 69023c8f7 (atomic) + PROGRESS | 14/14 ✓ + 71/71 fast suite | ~25m | New `D2Adapter` (`d2 --layout=elk --pad=20 --theme=0 --bundle=true`). Pre-flight: `d2 0.7.1` installed via `brew install d2` (PLAN per-language pre-flight policy authorised). REGISTRY/BLOCK_RE/`_FENCE_TO_LANG`/dispatcher fence-tag list extended (4 items). Gate (visual-confirmed): user confirmed all three SVGs in Preview/QuickLook this session ("user gate passed. all three images confirmed in Quicklook"). |
+| Phase 5 — Add LilyPond adapter | DONE (agent) | 2026-04-27 14:25 | 2026-04-27 14:33 | (atomic, pending) | 15/15 ✓ + 93/93 full suite | ~10m | New `LilyPondAdapter` (`lilypond -dpoint-and-click=#f -dbackend=svg -dno-include-book-title-preview -o <prefix>`). Pre-flight: `lilypond 2.26.0` installed via `brew install lilypond` (user authorised, same pattern as Phase 4 d2). REGISTRY/BLOCK_RE/`_FENCE_TO_LANG`/dispatcher fence-tag list extended (now 5 items). Sandbox `_RENDER_TEST_lilypond.md` (2 LilyPond blocks: C-major scale melody + 2-bar lead sheet with chord names). AC5.2 hard-verified at agent level: `grep -c 'file://'` returns 0 for both cache SVGs. User gate: open the 2 cached SVGs in Preview/QuickLook; visual fidelity check (notation looks right). |
 | Phase 6 — Add RDKit adapter | Not Started | | | | | | 2–3h est. Parallelizable. |
 | Phase 7 — Apply SVG postprocessing hardening | Not Started | | | | | | 4–6h est. Depends on Phase 2. |
 | Phase 8 — Plugin scaffold | Not Started | | | | | | 4–6h est. Parallelizable with 3–7. Node ≥18 required. |
@@ -57,6 +57,22 @@
 ## Log
 
 _(Most recent first — reverse chronological)_
+
+### Phase 4 — Gate Closure — 2026-04-27 (this session)
+
+**User confirmation (gate type: visual-confirmed):** "User gate passed. all three images confirmed in Quicklook" — user opened `attachments/cache/tikz/_RENDER_TEST_d2__{1,2,3}__<hash16>.svg` in Preview / QuickLook and confirmed visual fidelity for the three D2 blocks (simple 3-node graph, D2-specific shapes with dashed edge, nested containers with cross-container hand-off edge).
+
+**Why this gate matters:** D2 is a brand-new adapter family in v1; no prior cached SVGs to fall back on. A regression in the new `d2` adapter or the dispatcher's language routing would produce malformed output that the structural-only AC4.2 (rect/path counting) cannot fully catch. Visual confirmation rules out adapter-level layout regression.
+
+**Decisions made:** None new — gate-closure pattern is the same as Phase 1 v2 / Phase 2 / Phase 3 (D2.8/D2.9, D3-closure entry). Phase-table row updated DONE; entry-cell wording switched from "(agent)" to "DONE" + "Gate (visual-confirmed)".
+
+**Tests:** N/A (gate is user visual confirmation; no code change in this entry).
+
+**Next:** Phase 5 — Add LilyPond adapter (this session, immediately following).
+
+**Cross-references:** Phase 4 Done entry below; Phase 1 v2 / Phase 2 / Phase 3 gate-closure pattern.
+
+---
 
 ### Phase 4 — Add D2 adapter — 2026-04-27 (this session) DONE (agent-side)
 
