@@ -2,10 +2,10 @@
 
 **Spec:** `/Users/cs/Obsidian/_/docs/specs/render-cache/SPEC.md`
 **Plan:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PLAN.md`
-**Status:** Phase 1 agent-side complete (FIXED post-gate-failure regression); awaiting USER re-gate
+**Status:** Phase 1 DONE (user gate closed via CSS view-layer swap); awaiting trigger for Phase 2
 **Mode:** Manual (user-driven phase progression)
 **Started:** 2026-04-27
-**Last Updated:** 2026-04-27 11:30
+**Last Updated:** 2026-04-27 12:30
 
 > **Mode note:** PLAN.md L4 declares manual mode. SPEC §11.4 requires each
 > phase to end at a "Direct user feedback (gate)" before the next begins.
@@ -32,7 +32,7 @@
 
 | Phase | Status | Started | Completed | Commit | Tests | Duration | Notes |
 |-------|--------|---------|-----------|--------|-------|----------|-------|
-| Phase 1 — Migration: PNG → SVG via dvisvgm | DONE (agent, v2) | 2026-04-27 09:24 | 2026-04-27 11:30 | _pending_ | 14/14 ✓ | ~135 min | Initial v1 produced text-only SVGs (TikZ shapes invisible). Fixed via `--libgs=` (D1.6); v2 verified visually with rsvg-convert. **USER re-gate pending.** |
+| Phase 1 — Migration: PNG → SVG via dvisvgm | DONE | 2026-04-27 09:24 | 2026-04-27 12:30 | 84ccae5ac (CSS) + PROGRESS | 14/14 ✓ | ~3h gate-to-gate | v1 text-only SVG bug fixed via `--libgs=` (D1.6); v2 verified on disk. Desktop gate closed via CSS view-layer swap (D1.9-11) — brings forward Phase 8's cache-first viewer. User confirmed desktop + mobile. |
 | Phase 2 — Restructure into render_cache package | Not Started | | | | | | 2–4h est. Depends on Phase 1. |
 | Phase 3 — Add Graphviz adapter | Not Started | | | | | | 1–2h est. Parallelizable with 4–7 after Phase 2. |
 | Phase 4 — Add D2 adapter | Not Started | | | | | | 1–2h est. Parallelizable with 3,5–7. |
@@ -57,6 +57,46 @@
 ## Log
 
 _(Most recent first — reverse chronological)_
+
+### Phase 1 v2 — Gate Closure (CSS view-layer brought forward) — 2026-04-27 12:30
+
+**User confirmation:** "Confirmed on desktop and mobile" — the cached SVG renders immediately on desktop with no spinner. Mobile unchanged behaviorally.
+
+**What changed (commit `84ccae5ac` — auto-backup-captured at 12:27):**
+- `.obsidian/snippets/tikz-cache.css`: replaced "default-hide / mobile-show" model with "always-show / hide-codeblock-everywhere".
+- 4 effective lines of CSS rule change (`img[alt~="tikz-cache"]` → `display: block`; `.block-language-tikz, pre.language-tikz` → `display: none`). Design-intent comment block expanded to document the swap and the trade-off.
+
+**Why this was required for gate closure:**
+- The Phase 1 row's gate criterion ("desktop diagram visible") was structurally unsatisfiable under the original CSS, which hid `img[alt~="tikz-cache"]` everywhere except `.is-mobile` by design (intent comment lines 7-11 explicitly declared TikZJax was the desktop renderer).
+- TikZJax hangs deterministically on the title-node math pattern (`font=\large\bfseries` + `$\mathbb{R}$` math content) catalogued in `kn/math/concepts/_TIKZ_TEST_titles.md` Tests 4.6 / 4.7 / 4.9. This is the very failure mode SPEC §1 lines 70–72 names as motivating problem #2 ("Silent rendering failures in the existing TikZJax plugin's `dvi2html` JS converter").
+- Diagnostic confirmed Phase 1 v2 SVGs were byte-correct on disk (independently verified via rsvg-convert + macOS QuickLook + path-count assertions). The gate failure was structural CSS / plugin coupling, not a Phase 1 regression.
+
+**Decisions made:**
+- **D1.9:** Bring forward Phase 8's "cache-first viewer" semantics into the existing CSS snippet rather than wait for the full plugin (Phase 8). Rationale: SPEC G2 already commits to "Python writes cache; plugin reads cache only" — there is no live-preview-on-desktop in the approved end-state. The CSS swap implements that end-state behavior in 4 effective lines, no plugin code required.
+- **D1.10:** The CSS hides the live codeblock unconditionally (no `.is-mobile` qualifier). Both `.block-language-tikz` (codeblock-processor path, fires when TikZJax is registered) and `pre.language-tikz` (default Prism path, fires when no plugin handles `tikz`) are covered. The rule is robust to whether TikZJax is loaded, disabled, or hung — the unverified-at-runtime question of TikZJax's loaded state becomes irrelevant.
+- **D1.11:** Did NOT add cache-miss visual styling now. Obsidian renders missing embeds as a styled `![[file.svg]]` "broken embed" link, which is a sufficient default visual indicator for v1. Phase 10 (plugin error display + status bar) lands a richer indicator. Recorded as a deferred improvement, not a blocker.
+
+**Trade-off (explicitly accepted by user via SPEC G2 approval, reaffirmed by gate closure):**
+- Authoring a new TikZ block on desktop no longer shows live preview. To preview, run `tikz_cache.py` on the file. Source mode (Cmd+E) still shows the editable codeblock text. This matches SPEC G2 / G8 design.
+
+**Tests:** N/A — pure CSS change, hot-reloaded in Obsidian, no test infrastructure exists for CSS view rendering. User-driven visual verification serves as the gate.
+
+**Lessons learned:**
+- **PLAN's per-phase user-feedback gate template assumed the desktop view path worked.** That assumption was invalid in Phase 1. Future phases must verify whether the gate criterion is satisfiable under existing CSS / plugin state BEFORE writing the gate text. For Phase 2's gate, audit upstream view-layer dependencies first.
+- **Auto-backup interaction with user-gate iteration is benign.** The CSS edit was auto-committed at 12:27 (`84ccae5ac`) before the PROGRESS update. Atomic-commit discipline survives because the two commits are linked through this log entry — `84ccae5ac` is the CSS-only commit, this PROGRESS-update is the gate-closure commit.
+- **The diagnostic checkpoint (this file, §`CHECKPOINT — 2026-04-27`) is the source-of-truth investigation.** It catalogs the full read-only debug-like-expert investigation that produced this gate-closure. Future readers should pair the two — the diagnostic explains "why," this entry explains "what was done."
+
+**Cross-references:**
+- Investigation transcript: this PROGRESS.md `## CHECKPOINT — 2026-04-27 (post Phase 1 v2 user-gate report)` section near the bottom.
+- TikZJax bug catalog: `kn/math/concepts/_TIKZ_TEST_titles.md` (user-maintained).
+- SPEC motivating problem: `docs/specs/render-cache/SPEC.md` §1 lines 70-72.
+- Anomaly still flagged for separate session: `.obsidian/community-plugins.json` lists only 5 plugins; verify before next Obsidian restart.
+
+**Phase 1 status:** **DONE** (gate closed). Phase 2 not yet triggered.
+
+**Next:** Awaiting user trigger "Implement Phase 2" — Restructure into render_cache package (PLAN §Phase 2; 2-4h estimate; touches `resources/scripts/python_single/tikz_cache.py` + new `resources/scripts/python_single/render_cache/` package directory).
+
+---
 
 ### Phase 1 v2 — REGRESSION FIX: `--libgs=` for PostScript specials — 2026-04-27 11:30
 
