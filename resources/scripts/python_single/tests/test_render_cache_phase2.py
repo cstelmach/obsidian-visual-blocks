@@ -320,23 +320,28 @@ def test_render_cache_cli_no_args_prints_help() -> None:
 # ---------------------------------------------------------------------------
 # Integration tier — tikz_cache.py shim (PLAN Task 2.4).
 
+def _strip_docstrings_and_comments(source: str) -> str:
+    """Return ``source`` with triple-quoted strings and ``#`` comments removed."""
+    s = re.sub(r'"""(.*?)"""', "", source, flags=re.DOTALL)
+    s = re.sub(r"'''(.*?)'''", "", s, flags=re.DOTALL)
+    s = "\n".join(ln for ln in s.splitlines() if not ln.lstrip().startswith("#"))
+    return s
+
+
 def test_tikz_cache_shim_is_thin() -> None:
     """The shim is a forwarder, not the implementation. It must NOT contain
-    rendering logic (no lualatex/dvisvgm subprocess calls)."""
+    rendering logic (no lualatex/dvisvgm subprocess calls in executable code)."""
     src = TIKZ_CACHE_SHIM.read_text(encoding="utf-8")
-    code_lines = [
-        ln for ln in src.splitlines()
-        if ln.strip() and not ln.lstrip().startswith("#")
-    ]
+    code = _strip_docstrings_and_comments(src)
+    code_lines = [ln for ln in code.splitlines() if ln.strip()]
     # Effective lines should be small (a true forwarder is ~10–30 lines).
     assert len(code_lines) < 50, (
         f"Shim has {len(code_lines)} effective lines — expected a thin forwarder."
     )
-    # No rendering subprocess calls.
-    assert "lualatex" not in src or src.count("lualatex") <= 1, (
-        "Shim should not invoke lualatex directly"
-    )
-    assert "dvisvgm" not in src, "Shim should not invoke dvisvgm directly"
+    # No rendering subprocess calls in executable code.
+    assert "lualatex" not in code, "Shim must not invoke lualatex directly"
+    assert "dvisvgm" not in code, "Shim must not invoke dvisvgm directly"
+    assert "subprocess" not in code, "Shim must not run subprocesses"
 
 
 def test_tikz_cache_shim_imports_render_cache() -> None:

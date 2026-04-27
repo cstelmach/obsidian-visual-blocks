@@ -35,6 +35,17 @@ SMOKE_MD = Path("/Users/cs/Obsidian/_/kn/math/concepts/mSB3-4_reals.md")
 CACHE_DIR = Path("/Users/cs/Obsidian/_/attachments/cache/tikz")
 
 
+def _strip_docstrings_and_comments(source: str) -> str:
+    """Return the ``source`` with triple-quoted docstrings and ``#`` comments
+    removed. Used by tests that assert on executable code only."""
+    s = re.sub(r'"""(.*?)"""', "", source, flags=re.DOTALL)
+    s = re.sub(r"'''(.*?)'''", "", s, flags=re.DOTALL)
+    s = "\n".join(
+        ln for ln in s.splitlines() if not ln.lstrip().startswith("#")
+    )
+    return s
+
+
 # ---------------------------------------------------------------------------
 # Static tier — fast checks against the source file.
 
@@ -103,8 +114,12 @@ def test_no_bbox_preview_flag(source: str) -> None:
     """`--bbox=preview` is for the LaTeX `preview` package, NOT `standalone`.
     Mixing it with `--exact-bbox` produces a degenerate 13pt bbox that clips
     most TikZ content. Regression: 2026-04-27.
+
+    We check the *executable* code only — docstrings/comments may legitimately
+    mention the flag while explaining why we do NOT pass it.
     """
-    assert "--bbox=preview" not in source, (
+    code = _strip_docstrings_and_comments(source)
+    assert "--bbox=preview" not in code, (
         "--bbox=preview is for the `preview` LaTeX package; we use `standalone`. "
         "Use --bbox=min instead."
     )
@@ -140,20 +155,16 @@ def test_svg_extension_in_cache_filename(source: str) -> None:
 
 
 def test_no_active_png_extension_in_render_path(source: str) -> None:
-    """No `.png` literal in the active rendering / cache path code."""
+    """No `.png` literal in the adapter's active rendering / cache path code."""
     code_lines = [
         ln for ln in source.splitlines()
         if not ln.lstrip().startswith("#")
     ]
     code = "\n".join(code_lines)
-    # The CACHE_REF_RE may legitimately match BOTH .png and .svg (transition compat),
-    # so we tolerate `.png` inside a regex group. But a bare ".png" string literal
-    # used to construct cache paths must be gone.
+    # Adapter must have NO .png literal whatsoever — output is .svg only.
     bare_png_construction = re.findall(r"f?[\"'][^\"']*\.png[\"']", code)
-    # Allow inside an alternation group like (?:png|svg) — those won't match this regex
-    # pattern. Allow only zero matches in actual string-literal use.
     assert len(bare_png_construction) == 0, (
-        f"Found .png string literals in active code: {bare_png_construction}"
+        f"Found .png string literals in adapter: {bare_png_construction}"
     )
 
 
@@ -171,7 +182,7 @@ SMOKE_REQUIREMENTS = (DVISVGM, LUALATEX, SMOKE_MD.exists())
     reason=f"smoke prereq missing: dvisvgm={DVISVGM}, lualatex={LUALATEX}, file={SMOKE_MD.exists()}",
 )
 def test_smoke_render_produces_path_only_svg(tmp_path: Path) -> None:
-    """End-to-end: invoke the script with --force on the canonical test file.
+    """End-to-end: invoke the new CLI with --force on the canonical test file.
     Verify SVG produced, contains <path>, contains no <text>, and the markdown
     ref was rewritten to .svg.
     """
@@ -180,7 +191,7 @@ def test_smoke_render_produces_path_only_svg(tmp_path: Path) -> None:
 
     try:
         result = subprocess.run(
-            [sys.executable, str(SCRIPT), str(SMOKE_MD), "--force"],
+            [sys.executable, str(CLI), str(SMOKE_MD), "--force"],
             capture_output=True, text=True, timeout=180,
         )
         assert result.returncode == 0, (
@@ -214,9 +225,13 @@ def test_smoke_render_produces_path_only_svg(tmp_path: Path) -> None:
             "appears not rendered. Check that LIBGS_PATH is detected."
         )
 
-        # 4. Markdown ref was rewritten from .png to .svg
+        # 4. Markdown ref was rewritten to .svg with a hex hash. Phase 2 uses
+        # the canonical 16-char SHA-256 prefix per SPEC §3.7 T8; legacy 8-char
+        # hashes from Phase 1 are also tolerated for transition compatibility.
         new_md = SMOKE_MD.read_text(encoding="utf-8")
-        ref_re = re.compile(rf"!\[\[{re.escape(SMOKE_MD.stem)}__1__[0-9a-f]{{8}}\.svg\|tikz-cache\]\]")
+        ref_re = re.compile(
+            rf"!\[\[{re.escape(SMOKE_MD.stem)}__1__[0-9a-f]{{8,}}\.svg\|tikz-cache\]\]"
+        )
         assert ref_re.search(new_md), (
             f"Markdown ref not updated to .svg in {SMOKE_MD.name}"
         )
