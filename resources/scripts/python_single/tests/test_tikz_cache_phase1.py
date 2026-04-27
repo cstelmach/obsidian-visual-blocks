@@ -1,0 +1,198 @@
+"""
+test_tikz_cache_phase1.py — Verifies Phase 1 (PNG → SVG via dvisvgm).
+
+Reference: docs/specs/render-cache/SPEC.md §3.7 T1, PLAN.md Phase 1.
+
+Two tiers of tests:
+  - Static tier: parses tikz_cache.py source, checks constants and call sites.
+  - Smoke tier: invokes the script against a real cached file and verifies the
+                produced SVG. Marked `@pytest.mark.slow` and gated by the
+                presence of dvisvgm + lualatex (skipped otherwise).
+
+Run all:        pytest -v
+Skip smoke:     pytest -v -m "not slow"
+Smoke only:     pytest -v -m slow
+"""
+
+from __future__ import annotations
+
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+SCRIPT = Path("/Users/cs/Obsidian/_/resources/scripts/python_single/tikz_cache.py")
+SMOKE_MD = Path("/Users/cs/Obsidian/_/kn/math/concepts/mSB3-4_reals.md")
+CACHE_DIR = Path("/Users/cs/Obsidian/_/attachments/cache/tikz")
+
+
+# ---------------------------------------------------------------------------
+# Static tier — fast checks against the source file.
+
+@pytest.fixture(scope="module")
+def source() -> str:
+    assert SCRIPT.exists(), f"Script not found: {SCRIPT}"
+    return SCRIPT.read_text(encoding="utf-8")
+
+
+def test_script_imports_cleanly(source: str) -> None:
+    """The file must be syntactically valid Python."""
+    import ast
+    ast.parse(source)  # raises SyntaxError on failure
+
+
+def test_pdftoppm_call_removed(source: str) -> None:
+    """No active call to pdftoppm. Stripped from the render path entirely."""
+    # Allow the literal in a comment for historical context, but no active call.
+    code_lines = [
+        ln for ln in source.splitlines()
+        if not ln.lstrip().startswith("#")
+    ]
+    code = "\n".join(code_lines)
+    assert "pdftoppm" not in code, (
+        "pdftoppm reference found in active code (Phase 1 must replace it with dvisvgm)"
+    )
+
+
+def test_pdftoppm_timeout_constant_removed(source: str) -> None:
+    """PDFTOPPM_TIMEOUT_S must be deleted (no longer used)."""
+    assert "PDFTOPPM_TIMEOUT_S" not in source, (
+        "PDFTOPPM_TIMEOUT_S constant still defined; should be removed in Phase 1"
+    )
+
+
+def test_dpi_constant_removed(source: str) -> None:
+    """DPI was a pdftoppm-only constant. Should be removed; dvisvgm is resolution-independent."""
+    assert not re.search(r"^\s*DPI\s*=", source, re.MULTILINE), (
+        "DPI = ... constant still defined; should be removed (SVG is resolution-independent)"
+    )
+
+
+def test_dvisvgm_invocation_present(source: str) -> None:
+    """A subprocess call to dvisvgm must exist."""
+    assert "dvisvgm" in source, "dvisvgm not invoked anywhere in the script"
+
+
+def test_dvisvgm_no_fonts_flag(source: str) -> None:
+    """SPEC §3.7 T1: --no-fonts is mandatory (path-only output, no font references)."""
+    assert "--no-fonts" in source, (
+        "--no-fonts flag missing — required by SPEC §3.7 T1"
+    )
+
+
+def test_lualatex_dvi_output_format(source: str) -> None:
+    """lualatex must emit DVI (not PDF) for dvisvgm to consume."""
+    assert "-output-format=dvi" in source or "--output-format=dvi" in source, (
+        "lualatex must use -output-format=dvi to produce DVI for dvisvgm"
+    )
+
+
+def test_dvisvgm_timeout_constant_present(source: str) -> None:
+    """A DVISVGM_TIMEOUT_S constant must exist (per PLAN Task 1.2)."""
+    assert re.search(r"^\s*DVISVGM_TIMEOUT_S\s*=", source, re.MULTILINE), (
+        "DVISVGM_TIMEOUT_S constant must be defined"
+    )
+
+
+def test_lualatex_timeout_still_present(source: str) -> None:
+    """LUALATEX_TIMEOUT_S preserved (no scope creep)."""
+    assert re.search(r"^\s*LUALATEX_TIMEOUT_S\s*=", source, re.MULTILINE), (
+        "LUALATEX_TIMEOUT_S removed accidentally — still needed"
+    )
+
+
+def test_svg_extension_in_cache_filename(source: str) -> None:
+    """Cache filename pattern must use .svg, not .png."""
+    # Look for the cached-name pattern: {stem}__{idx}__{hash}.svg
+    assert re.search(r'\.svg["\'`]', source), (
+        "No .svg literal found — cache filename pattern must produce .svg"
+    )
+
+
+def test_no_active_png_extension_in_render_path(source: str) -> None:
+    """No `.png` literal in the active rendering / cache path code."""
+    code_lines = [
+        ln for ln in source.splitlines()
+        if not ln.lstrip().startswith("#")
+    ]
+    code = "\n".join(code_lines)
+    # The CACHE_REF_RE may legitimately match BOTH .png and .svg (transition compat),
+    # so we tolerate `.png` inside a regex group. But a bare ".png" string literal
+    # used to construct cache paths must be gone.
+    bare_png_construction = re.findall(r"f?[\"'][^\"']*\.png[\"']", code)
+    # Allow inside an alternation group like (?:png|svg) — those won't match this regex
+    # pattern. Allow only zero matches in actual string-literal use.
+    assert len(bare_png_construction) == 0, (
+        f"Found .png string literals in active code: {bare_png_construction}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Smoke tier — exercise the script end-to-end on a real file.
+
+DVISVGM = shutil.which("dvisvgm")
+LUALATEX = shutil.which("lualatex")
+SMOKE_REQUIREMENTS = (DVISVGM, LUALATEX, SMOKE_MD.exists())
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(
+    not all(SMOKE_REQUIREMENTS),
+    reason=f"smoke prereq missing: dvisvgm={DVISVGM}, lualatex={LUALATEX}, file={SMOKE_MD.exists()}",
+)
+def test_smoke_render_produces_path_only_svg(tmp_path: Path) -> None:
+    """End-to-end: invoke the script with --force on the canonical test file.
+    Verify SVG produced, contains <path>, contains no <text>, and the markdown
+    ref was rewritten to .svg.
+    """
+    # Snapshot the markdown so we can restore if the test interrupts.
+    md_snapshot = SMOKE_MD.read_text(encoding="utf-8")
+
+    try:
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), str(SMOKE_MD), "--force"],
+            capture_output=True, text=True, timeout=180,
+        )
+        assert result.returncode == 0, (
+            f"Script failed (exit {result.returncode}). "
+            f"stdout=\n{result.stdout}\nstderr=\n{result.stderr}"
+        )
+
+        # 1. SVG exists at expected path
+        svgs = sorted(CACHE_DIR.glob(f"{SMOKE_MD.stem}__1__*.svg"))
+        assert len(svgs) == 1, f"Expected 1 SVG for {SMOKE_MD.stem}, got {svgs}"
+        svg = svgs[0]
+
+        # 2. SVG file size is in plausible range (5 KB – 2 MB)
+        size = svg.stat().st_size
+        assert 5_000 < size < 2_000_000, (
+            f"SVG size {size} outside plausible range — likely incomplete render"
+        )
+
+        # 3. SVG is path-only: no <text> elements (--no-fonts vectorized them)
+        svg_text = svg.read_text(encoding="utf-8")
+        assert "<text" not in svg_text, (
+            "SVG contains <text> — --no-fonts may not be applied"
+        )
+        assert svg_text.count("<path") >= 1, (
+            "SVG has no <path> elements — render likely failed silently"
+        )
+
+        # 4. Markdown ref was rewritten from .png to .svg
+        new_md = SMOKE_MD.read_text(encoding="utf-8")
+        ref_re = re.compile(rf"!\[\[{re.escape(SMOKE_MD.stem)}__1__[0-9a-f]{{8}}\.svg\|tikz-cache\]\]")
+        assert ref_re.search(new_md), (
+            f"Markdown ref not updated to .svg in {SMOKE_MD.name}"
+        )
+
+    finally:
+        # Best-effort restore if the script left the markdown in an inconsistent state.
+        # (We intentionally do NOT restore on success — the .svg ref is the desired post-condition.)
+        if SMOKE_MD.read_text(encoding="utf-8") != md_snapshot:
+            # Did the script update the ref correctly? Then keep changes. Else revert.
+            new_text = SMOKE_MD.read_text(encoding="utf-8")
+            if "tikz-cache" in new_text and ".svg|tikz-cache" not in new_text:
+                SMOKE_MD.write_text(md_snapshot, encoding="utf-8")

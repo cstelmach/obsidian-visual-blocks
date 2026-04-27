@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
 """
-tikz_cache.py — Render Obsidian TikZ blocks to cached PNGs.
+tikz_cache.py — Render Obsidian TikZ blocks to cached SVGs.
 
 Solves the mobile-rendering crash and reduces desktop reflow by pre-rendering
-every ``` ```tikz ``` and ``` ```tikz-paused ``` block to a PNG file. Inserts a
+every ``` ```tikz ``` and ``` ```tikz-paused ``` block to an SVG file. Inserts a
 companion `![[…|tikz-cache]]` image reference after each block; CSS toggles
 which one is shown based on platform (see .obsidian/snippets/tikz-cache.css).
 
 Hash-based invalidation: filename embeds an 8-char SHA256 of the TikZ source.
-When the source changes, a new PNG is rendered and the reference is rewritten;
-the old PNG is removed.
+When the source changes, a new SVG is rendered and the reference is rewritten;
+the old SVG is removed.
 
-Render engine: lualatex → pdftoppm. Both must be on PATH.
+Render engine: lualatex (DVI) → dvisvgm (SVG, --no-fonts). Both must be on PATH.
+SPEC §3.7 T1 mandates `dvisvgm --no-fonts` so glyphs are vectorized and no
+font-file references appear in the output (iOS read-only consumption).
 
 Usage:
     tikz_cache.py FILE.md            # cache one file
     tikz_cache.py FILE.md --force    # re-render even if hash unchanged
     tikz_cache.py --all              # scan vault under SCAN_ROOTS
-    tikz_cache.py --sweep            # remove orphaned cache images vault-wide
+    tikz_cache.py --sweep            # remove orphaned cache SVGs vault-wide
     tikz_cache.py FILE.md --dry-run  # show what would change
 
 Exit codes: 0 success, 1 partial failures, 2 fatal error.
@@ -40,9 +42,8 @@ from pathlib import Path
 VAULT_ROOT = Path("/Users/cs/Obsidian/_")
 CACHE_DIR = VAULT_ROOT / "attachments" / "cache" / "tikz"
 SCAN_ROOTS = [VAULT_ROOT / "kn"]
-DPI = 300
 LUALATEX_TIMEOUT_S = 90
-PDFTOPPM_TIMEOUT_S = 30
+DVISVGM_TIMEOUT_S = 60
 
 LATEX_PREAMBLE = textwrap.dedent(r"""
     \documentclass[border=4pt]{standalone}
@@ -67,9 +68,11 @@ TIKZ_BLOCK_RE = re.compile(
 )
 
 # Match an immediately-following `![[FILENAME|tikz-cache]]` reference. The
-# leading whitespace (\n+) is captured so we can replace cleanly.
+# leading whitespace (\n+) is captured so we can replace cleanly. Both `.png`
+# (legacy) and `.svg` (current) extensions are matched so that re-renders
+# rewrite stale PNG refs in place rather than appending duplicate refs.
 CACHE_REF_RE = re.compile(
-    r"\n+!\[\[([^\]|\n]+\.png)\|tikz-cache\]\]"
+    r"\n+!\[\[([^\]|\n]+\.(?:png|svg))\|tikz-cache\]\]"
 )
 
 
@@ -80,9 +83,9 @@ CACHE_REF_RE = re.compile(
 class BlockResult:
     index: int          # 1-based position in the file
     hash8: str          # 8-char source hash
-    png_name: str       # basename of cached PNG
+    svg_name: str       # basename of cached SVG
     rendered: bool      # True if we just rendered it (cache miss or force)
-    ok: bool            # True if PNG exists at the end
+    ok: bool            # True if SVG exists at the end
     error: str | None = None
 
 
@@ -117,22 +120,27 @@ def extract_tikz_body(block: str) -> str:
     return body.strip() + "\n"
 
 
-def render_tikz(block: str, output_png: Path, work_dir: Path) -> tuple[bool, str | None]:
+def render_tikz(block: str, output_svg: Path, work_dir: Path) -> tuple[bool, str | None]:
     """
-    Render one TikZ block to PNG. Returns (ok, error_message).
+    Render one TikZ block to SVG via lualatex (DVI) → dvisvgm (--no-fonts).
+    Returns (ok, error_message). SPEC §3.7 T1 requires --no-fonts so the
+    output contains only path geometry and no font-file references.
     """
     work_dir.mkdir(parents=True, exist_ok=True)
     body = extract_tikz_body(block)
     full_tex = LATEX_PREAMBLE + body + LATEX_POSTAMBLE
 
     tex_path = work_dir / "tikz.tex"
-    pdf_path = work_dir / "tikz.pdf"
+    dvi_path = work_dir / "tikz.dvi"
     tex_path.write_text(full_tex, encoding="utf-8")
 
-    # 1. Compile to PDF
+    # 1. Compile to DVI (not PDF — dvisvgm consumes DVI directly).
     try:
         result = subprocess.run(
-            ["lualatex", "-interaction=nonstopmode", "-halt-on-error", "tikz.tex"],
+            ["lualatex",
+             "-interaction=nonstopmode", "-halt-on-error",
+             "-output-format=dvi",
+             "tikz.tex"],
             cwd=work_dir,
             capture_output=True,
             text=True,
@@ -143,8 +151,7 @@ def render_tikz(block: str, output_png: Path, work_dir: Path) -> tuple[bool, str
     except FileNotFoundError:
         return False, "lualatex not found on PATH"
 
-    if not pdf_path.exists():
-        # Bubble up the most relevant LaTeX error line for diagnostics
+    if not dvi_path.exists():
         log_path = work_dir / "tikz.log"
         snippet = ""
         if log_path.exists():
@@ -153,21 +160,25 @@ def render_tikz(block: str, output_png: Path, work_dir: Path) -> tuple[bool, str
             snippet = " | ".join(err_lines[:3]) or log.splitlines()[-1] if log.splitlines() else ""
         return False, f"lualatex failed: {snippet[:200]}"
 
-    # 2. Convert PDF → PNG @ DPI (standalone class already crops to content)
-    out_stem = output_png.with_suffix("")
+    # 2. Convert DVI → SVG. Mandatory flag: --no-fonts (SPEC §3.7 T1).
+    #    --exact-bbox + --bbox=preview: tight crop matches \documentclass{standalone}.
     try:
         result = subprocess.run(
-            ["pdftoppm", "-r", str(DPI), "-png", "-singlefile",
-             str(pdf_path), str(out_stem)],
-            capture_output=True, text=True, timeout=PDFTOPPM_TIMEOUT_S,
+            ["dvisvgm",
+             "--no-fonts",
+             "--exact-bbox",
+             "--bbox=preview",
+             "--output", str(output_svg),
+             str(dvi_path)],
+            capture_output=True, text=True, timeout=DVISVGM_TIMEOUT_S,
         )
     except subprocess.TimeoutExpired:
-        return False, "pdftoppm timeout"
+        return False, "dvisvgm timeout"
     except FileNotFoundError:
-        return False, "pdftoppm not found on PATH"
+        return False, "dvisvgm not found on PATH"
 
-    if result.returncode != 0 or not output_png.exists():
-        return False, f"pdftoppm failed: {result.stderr.strip()[:200]}"
+    if result.returncode != 0 or not output_svg.exists():
+        return False, f"dvisvgm failed: {result.stderr.strip()[:200]}"
 
     return True, None
 
@@ -213,21 +224,21 @@ def process_file(md_path: Path, force: bool, dry_run: bool) -> list[BlockResult]
     for idx, m in enumerate(blocks, 1):
         inner = m.group(3)
         h = hash_content(inner)
-        png_name = f"{md_path.stem}__{idx}__{h}.png"
-        png_path = CACHE_DIR / png_name
-        in_use_filenames.add(png_name)
+        svg_name = f"{md_path.stem}__{idx}__{h}.svg"
+        svg_path = CACHE_DIR / svg_name
+        in_use_filenames.add(svg_name)
 
         rendered = False
         ok = True
         err = None
-        if force or not png_path.exists():
+        if force or not svg_path.exists():
             print(f"   [{idx}] hash={h} → render")
             if dry_run:
-                print(f"        (dry-run) would render to {png_path}")
-                ok = png_path.exists()  # treat as ok if existing
+                print(f"        (dry-run) would render to {svg_path}")
+                ok = svg_path.exists()  # treat as ok if existing
             else:
                 work_dir = CACHE_DIR / f"_work_{md_path.stem}_{idx}"
-                ok, err = render_tikz(inner, png_path, work_dir)
+                ok, err = render_tikz(inner, svg_path, work_dir)
                 shutil.rmtree(work_dir, ignore_errors=True)
                 rendered = ok
                 if not ok:
@@ -235,20 +246,20 @@ def process_file(md_path: Path, force: bool, dry_run: bool) -> list[BlockResult]
         else:
             print(f"   [{idx}] hash={h} → cache hit")
 
-        results.append(BlockResult(idx, h, png_name, rendered, ok, err))
+        results.append(BlockResult(idx, h, svg_name, rendered, ok, err))
 
         if not ok:
-            continue  # leave reference alone if we have no fresh PNG
+            continue  # leave reference alone if we have no fresh SVG
 
         # Plan the reference edit
         block_end = m.end()
-        new_ref = f"\n\n![[{png_name}|tikz-cache]]"
+        new_ref = f"\n\n![[{svg_name}|tikz-cache]]"
         existing, ref_start, ref_end = find_existing_ref(content, block_end)
         if existing is None:
             edits.append((block_end, block_end, new_ref))
         else:
             existing_filename = existing.group(1)
-            if existing_filename == png_name:
+            if existing_filename == svg_name:
                 continue  # already current
             edits.append((ref_start, ref_end, new_ref))
 
@@ -257,12 +268,13 @@ def process_file(md_path: Path, force: bool, dry_run: bool) -> list[BlockResult]
     for start, end, replacement in sorted(edits, key=lambda e: -e[0]):
         new_content = new_content[:start] + replacement + new_content[end:]
 
-    # Cleanup: orphaned cache files for this note (different hash, same stem+idx slot)
+    # Cleanup: orphaned SVGs for this note (different hash, same stem+idx slot).
+    # Legacy PNGs are intentionally left alone here — Phase 12 sweeps them.
     if not dry_run:
-        for old_png in CACHE_DIR.glob(f"{md_path.stem}__*.png"):
-            if old_png.name not in in_use_filenames:
-                print(f"   [-] orphan: {old_png.name}")
-                old_png.unlink()
+        for old_svg in CACHE_DIR.glob(f"{md_path.stem}__*.svg"):
+            if old_svg.name not in in_use_filenames:
+                print(f"   [-] orphan: {old_svg.name}")
+                old_svg.unlink()
 
     if new_content != content:
         if dry_run:
@@ -276,16 +288,19 @@ def process_file(md_path: Path, force: bool, dry_run: bool) -> list[BlockResult]
 
 def sweep_orphans(dry_run: bool) -> int:
     """
-    Vault-wide: delete cache PNGs whose `<stem>` no longer corresponds to a
+    Vault-wide: delete cache SVGs whose `<stem>` no longer corresponds to a
     markdown file containing tikz, OR whose `<hash>` no longer matches any
     block in the corresponding markdown file.
+
+    Legacy PNGs are not swept here; Phase 12 of the render-cache project
+    handles the one-shot PNG → SVG migration cleanup.
     """
     if not CACHE_DIR.exists():
         print("(cache dir doesn't exist yet)")
         return 0
 
     # Index every cache file by (stem, idx, hash)
-    cache_files = list(CACHE_DIR.glob("*.png"))
+    cache_files = list(CACHE_DIR.glob("*.svg"))
     if not cache_files:
         print("(no cache files found)")
         return 0
@@ -298,19 +313,19 @@ def sweep_orphans(dry_run: bool) -> int:
             md_by_stem.setdefault(md.stem, md)
 
     deleted = 0
-    for png in cache_files:
-        # Parse "<stem>__<idx>__<hash8>.png"
-        m = re.match(r"^(.+)__(\d+)__([0-9a-f]{8})\.png$", png.name)
+    for svg in cache_files:
+        # Parse "<stem>__<idx>__<hash8>.svg"
+        m = re.match(r"^(.+)__(\d+)__([0-9a-f]{8})\.svg$", svg.name)
         if not m:
-            print(f"   [?] unparseable cache name, leaving: {png.name}")
+            print(f"   [?] unparseable cache name, leaving: {svg.name}")
             continue
         stem, idx_s, h = m.group(1), int(m.group(2)), m.group(3)
 
         md = md_by_stem.get(stem)
         if md is None:
-            print(f"   [-] no source for {png.name}")
+            print(f"   [-] no source for {svg.name}")
             if not dry_run:
-                png.unlink()
+                svg.unlink()
             deleted += 1
             continue
 
@@ -323,9 +338,9 @@ def sweep_orphans(dry_run: bool) -> int:
             }
 
         if (idx_s, h) not in source_hashes[stem]:
-            print(f"   [-] stale: {png.name}")
+            print(f"   [-] stale: {svg.name}")
             if not dry_run:
-                png.unlink()
+                svg.unlink()
             deleted += 1
 
     print(f"sweep complete: {deleted} cache file(s) {'would be ' if dry_run else ''}removed")
@@ -349,7 +364,7 @@ def find_all_md_with_tikz() -> list[Path]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Render Obsidian TikZ blocks to cached PNGs.",
+        description="Render Obsidian TikZ blocks to cached SVGs.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=textwrap.dedent("""\
             Examples:
@@ -366,7 +381,7 @@ def main() -> int:
     parser.add_argument("--force", action="store_true",
                         help="Re-render even when the hash matches the existing cache")
     parser.add_argument("--sweep", action="store_true",
-                        help="Vault-wide: delete orphaned/stale cache PNGs")
+                        help="Vault-wide: delete orphaned/stale cache SVGs")
     parser.add_argument("--dry-run", action="store_true",
                         help="Don't write files or run lualatex; just report what would happen")
     args = parser.parse_args()
