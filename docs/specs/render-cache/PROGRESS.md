@@ -338,3 +338,111 @@ _(Entries added when the same error occurs 3+ times. Empty at initialization.)_
 ```
 
 **Manual-mode reminder:** The agent EXITS after each phase's checkpoint. The user must explicitly trigger the next phase ("Implement Phase N") after confirming the per-phase user-feedback gate.
+
+---
+
+## CHECKPOINT — 2026-04-27 (post Phase 1 v2 user-gate report)
+
+**Session type:** Diagnostic (read-only, no code changes). Triggered by user reporting that on the Phase 1 v2 desktop gate, `mSB3-4_reals.md` shows a "rendering …" spinner that never resolves (>20 min). User explicitly broadened scope: also asked why some TikZ blocks in `_TIKZ_TEST_titles.md` only render after Obsidian restart (Tests 3.2/3.3) or never at all (Tests 4.6/4.7/4.9).
+
+**Skill used:** `debug-like-expert` (read-only diagnosis mode; presents findings at decision gate, does not modify code).
+
+### What was investigated
+
+1. **Read `mSB3-4_reals.md` end-to-end** to find what's actually on the page.
+2. **Read `_TIKZ_TEST_titles.md`** to understand the user's prior TikZJax bug catalog (Parts 1–4 test plan).
+3. **Inspected `.obsidian/snippets/tikz-cache.css`** (38 lines) — the design intent comment is critical evidence.
+4. **Listed installed plugins** (58 in `.obsidian/plugins/`) vs. enabled plugins (5 in `community-plugins.json`).
+5. **Examined `obsidian-plugin-groups/data.json`** for any group that auto-enables TikZJax — found 3 groups containing TikZJax, all with `loadAtStartup: false`.
+6. **Grepped TikZJax `main.js`** for spinner/loader code — confirmed it registers `tikz` codeblock processor, has an inline placeholder SVG with `<rect>` + `<circle>` (the "loader"), and IndexedDB-caches successful renders by md5(source).
+7. **Cross-referenced cache directory** — confirmed all 5 SVGs from Phase 1 v2 exist on disk (50KB–376KB, byte-correct per prior rsvg-convert / QuickLook).
+8. **Cross-referenced SPEC §1 line 70-72** — the failure mode the user is seeing is *literally one of the named motivating problems* of the new system ("Silent rendering failures in the existing TikZJax plugin's `dvi2html` JS converter").
+
+### What worked (findings reached with high confidence)
+
+- **The 5 source files all share the same dual-rendering structure**: a live ` ```tikz ` codeblock followed by a `![[…__hash.svg|tikz-cache]]` reference. Counts: `mSB3-4_reals` 1+1, `mSB3-5_complex` 1+1, `mSB5-2_partial` 1+1, `mLA5-1_eigenvalues` 2+2.
+- **The CSS hides the cached SVG on desktop by design**: `img[alt~="tikz-cache"] { display: none; }` is the default; only `.is-mobile` overrides to `display: block`. This means **Phase 1 v2 produced byte-correct SVGs that the user physically cannot see on desktop without modifying CSS or installing the Phase 8 plugin.**
+- **The Phase 1 v2 user-gate criterion is structurally unsatisfiable on desktop** under current CSS. The desktop "failure" the user reported is not a Phase 1 v2 regression; it's exposure of the long-standing TikZJax hang when verification was attempted.
+- **The TikZ codeblock at `mSB3-4_reals.md:145` matches the user's own catalogued hang pattern**: `\node[above, axiscolor, font=\large\bfseries] at (0, 2.2) {$\mathbb{R}$: ...}`. The test file's Tests 4.6 / 4.7 / 4.9 already proved this exact pattern (`font=\large\bfseries` + `$\mathbb{R}$` math content) hangs the renderer.
+- **The "works after restart" pattern is consistent with TikZJax's IndexedDB result cache**: successful md5(source)-keyed renders are persisted; after restart, instant retrieval (no recompile, no hang). Failed compiles don't write any cache entry → next session re-tries → re-hangs. Deterministic but tied to invisible state.
+- **SPEC §1 already names this exact bug** as one of four motivating problems. The Phase 8 plugin is designed precisely to replace TikZJax for ` ```tikz ` blocks (cache-only viewer, never invokes a JS engine).
+
+### What didn't work / what remains uncertain
+
+- **Could not directly confirm TikZJax is loaded right now.** Strong indirect evidence (CSS comment "TikZJax plugin ENABLED", user's prior bug investigation in test file, registered codeblock processor in plugin's `main.js`) but `community-plugins.json` does NOT list `obsidian-tikzjax` and no plugin group auto-enables it. The user must be enabling it manually via the Plugin Groups commander, or some runtime mechanism not visible to file inspection. **Two cheap discriminators were proposed (Cmd+P "TikZJax" command palette test; DevTools class name on the spinner) but the user did not run them yet.**
+- **Could not confirm "rendering …" text wording matches a TikZJax string.** The minified `main.js` doesn't statically expose loader text; the loader uses an SVG with a `<text>` element whose content isn't a static string in the file.
+- **Did NOT modify any files.** Per the `debug-like-expert` skill: read-only diagnosis, present findings at decision gate, await user choice before any code edit.
+
+### Anomaly surfaced (NOT in scope of this session, NOT investigated)
+
+`community-plugins.json` (mtime today, 11:50) contains only 5 plugins: `ai-note-suggestion, obsidian-plugin-groups, claude-sidebar, obsidian-advanced-uri, calendar`. Yet the vault uses Dataview, CustomJS, Templater, Tasks, etc. — and they are clearly running in the current session (the file's `dataviewjs` header executes). Either:
+- Obsidian carries a runtime-only enabled state divorced from this file, OR
+- The file was recently overwritten/corrupted and the next Obsidian restart could disable most of the user's stack.
+
+**Worth checking before next restart. Flagged for user awareness; not addressed here.**
+
+### Decisions made
+
+1. **Diagnosis classified as TWO stacked causes**, not one:
+   - (a) Renderer (almost certainly TikZJax) hangs on the title-node math pattern. Pre-existing JS bug; SPEC §1 acknowledges it.
+   - (b) Phase 1 v2's user-gate criterion is unsatisfiable on desktop under current CSS.
+2. **Recommended Option A (CSS swap, ~4 effective lines)** as the primary unblocker. It brings forward the Phase 8 plugin's "cache-first viewer" semantics into the existing CSS snippet — robust to whether-or-not TikZJax is loaded. Trade-off: live preview of new TikZ blocks on desktop becomes invisible (matches eventual SPEC G2 / G8 design but is a real workflow change today).
+3. **Did NOT recommend** building a watchdog plugin (Option C) or fixing TikZJax's preamble (Option D). Both are throwaway given Phase 8 is already on the roadmap.
+4. **Recommended Phase 1 v2 gate criterion be revised** rather than declared satisfied by mobile-only visual: either pair with Option A (so desktop visual becomes meaningful) or honestly redefine as "rsvg-convert + QuickLook + iOS visual = pass."
+5. **Held off on any file edits.** The CSS swap requires explicit user approval because it changes the visual workflow (live preview lost on desktop).
+
+### What is to be done next
+
+**Awaiting user decision among 6 options (presented at decision gate):**
+
+1. Apply Option A (CSS swap) — edit `/Users/cs/Obsidian/_/.obsidian/snippets/tikz-cache.css`. Hot-reload via Settings → Appearance toggle. No restart.
+2. Apply Option A + Option B — also disable TikZJax cleanly (stop wasted CPU on hidden background renders).
+3. Run cheap confirmation first (Cmd+P "TikZJax" or DevTools inspect on spinner), then apply Option A with full confidence.
+4. Investigate the `community-plugins.json` anomaly first.
+5. Hold off — keep CSS as-is, redefine Phase 1 v2 gate as agent-side correct + mobile-visual + on-disk verified, continue to Phase 2.
+6. Other.
+
+**If Option A is chosen, the verification plan is:**
+1. Hot-reload CSS in Obsidian (Settings → Appearance → toggle `tikz-cache` off then on). No restart.
+2. Reopen the 5 files on desktop. Each should immediately show the cached SVG. Spinner cannot be visible (codeblock is `display:none`).
+3. Re-check mobile (should be unchanged behaviorally).
+4. Author-mode check: source mode (Cmd+E) still shows the editable codeblock text.
+5. Mark Phase 1 v2 user-gate satisfied, proceed to Phase 2.
+
+### Lessons learned (for next developer / future sessions)
+
+- **The vault's CSS snippet `tikz-cache.css` is intentionally TikZJax-coupled.** Its design intent comment (lines 5–20) declares "Desktop = TikZJax, Mobile = cached." Any phase touching the rendering view layer must reconcile with — or replace — this CSS.
+- **The user maintains a meticulous TikZ-bug catalog in `_TIKZ_TEST_titles.md`** with 4 parts (structural, element-removal, content, standalone catalog). When the user reports "rendering …" or "broken picture icon", check this file's findings table first before forming new hypotheses.
+- **TikZJax's IndexedDB cache makes restart-success deterministic-but-invisible.** "Works after restart" is not magic; it means a prior session successfully wrote the md5(source)-keyed result to the browser's IndexedDB. Don't waste time investigating "why restart helps" — investigate "why initial compile hung."
+- **Phase 1 v2's user-gate text needs a structural fix.** "User confirms diagrams visible on desktop" cannot be true under the current CSS. Either the gate must change, or the CSS must change, or the Phase 8 plugin must land first. The PLAN's per-phase-feedback-gate template assumes the desktop view path works; this assumption is invalid in Phase 1.
+- **Don't confuse "agent-side correct" with "user-visible." The Phase 1 v2 SVGs are byte-perfect (independently verified via rsvg-convert + QuickLook + on-disk inspection). The desktop visibility issue is orthogonal — it's a CSS+plugin layer concern.
+- **The community-plugins.json anomaly (only 5 entries, mtime today) is a latent footgun.** Don't ignore it; surface it whenever a plugin-related session starts. A future restart could nuke most of the user's stack.
+
+### Failed approaches NOT to repeat
+
+- **Don't try to fix TikZJax itself** (preamble, WASM rebuild, fork). SPEC §3 D01 explicitly rejects this: `web2js` (the toolchain) is abandoned since 2021. The catalogued path forward is to replace, not repair.
+- **Don't add a JS watchdog/timeout to the existing CSS snippet.** Throwaway given Phase 8 plugin is the right surface for inline error display (G9). Building a watchdog now would be deleted in 2–3 weeks.
+- **Don't claim Phase 1 v2 is "verified" based only on the mobile visual.** The desktop visual is structurally hidden. Either change the CSS (Option A) or honestly mark the gate as "agent-side + mobile-visual + on-disk" pass.
+- **Don't run any bulk markdown-modification scripts** to "remove the live ` ```tikz ` blocks." The codeblock IS the source of truth that gets re-rendered when the file changes; it must remain in the file. CSS hiding is the right approach.
+
+### Status going into next session
+
+| Aspect | State |
+|---|---|
+| Phase 1 v2 SVG cache files on disk | ✓ Verified byte-correct (rsvg-convert + QuickLook + path-count check) |
+| Phase 1 v2 mobile visual | ✓ User confirmed "looks good" |
+| Phase 1 v2 desktop visual | ✗ Structurally invisible under current CSS — gate criterion needs revision OR Option A applied |
+| TikZJax hang root cause | ✓ Identified (title-node math content); SPEC §1 already names it |
+| Code changes this session | None (read-only diagnosis per `debug-like-expert` skill) |
+| User-action required | Choose 1–6 from decision gate; recommend Option A (CSS swap, ~4 effective lines) |
+| `community-plugins.json` anomaly | Flagged, not addressed; verify before next Obsidian restart |
+| Next phase trigger when ready | "Apply Option A" (then re-gate Phase 1 v2) → "Implement Phase 2" |
+
+**Critical files for next-session reorientation:**
+
+- `/Users/cs/Obsidian/_/.obsidian/snippets/tikz-cache.css` (38 lines) — the CSS layer that needs the swap if Option A is chosen
+- `/Users/cs/Obsidian/_/kn/math/concepts/_TIKZ_TEST_titles.md` (700 lines) — the user's TikZJax bug catalog; reference any time TikZJax behavior is in question
+- `/Users/cs/Obsidian/_/kn/math/concepts/mSB3-4_reals.md:145` — exemplar of the hang-triggering title pattern
+- `/Users/cs/Obsidian/_/docs/specs/render-cache/SPEC.md:70-72` — SPEC §1 statement of "Silent rendering failures in TikZJax" as motivating problem #2
+- `/Users/cs/Obsidian/_/.obsidian/community-plugins.json` — anomaly: only 5 plugins listed
+
