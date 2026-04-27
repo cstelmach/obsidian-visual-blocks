@@ -34,7 +34,7 @@
 |-------|--------|---------|-----------|--------|-------|----------|-------|
 | Phase 1 — Migration: PNG → SVG via dvisvgm | DONE | 2026-04-27 09:24 | 2026-04-27 12:30 | 84ccae5ac (CSS) + PROGRESS | 14/14 ✓ | ~3h gate-to-gate | v1 text-only SVG bug fixed via `--libgs=` (D1.6); v2 verified on disk. Desktop gate closed via CSS view-layer swap (D1.9-11) — brings forward Phase 8's cache-first viewer. User confirmed desktop + mobile. |
 | Phase 2 — Restructure into render_cache package | DONE | 2026-04-27 13:00 | 2026-04-27 (gate closed) | 2aaf1f5b5 (code) + b20ee085c (PROGRESS) | 50/50 ✓ | ~15m | 10-module package + new CLI + deprecation shim. SPEC §3.9 16-char canonical hash adopted. 5 Phase 1 cache files re-keyed; 95 previously-uncached TikZ files now rendered (3 fail with pre-existing source bugs — not Phase 2 regressions). Gate (visual-confirmed by user, this session): cached SVGs render correctly desktop + mobile post-restructure. |
-| Phase 3 — Add Graphviz adapter | DONE (agent) | 2026-04-27 (Phase 3 begin) | 2026-04-27 (this session) | (atomic commit pending) | 14/14 ✓ + 60/60 fast suite | ~30m | New `GraphvizAdapter` (`dot -Tsvg`), REGISTRY+BLOCK_RE+`_FENCE_TO_LANG`+dispatcher fence-tag list extended. Sandbox `_RENDER_TEST_graphviz.md` (3 DOT blocks: simple digraph / labeled edges / clustered subgraph). Pre-flight `dot - graphviz version 14.1.5` (Apple Silicon brew). User gate: open `_RENDER_TEST_graphviz.md` cached SVGs in Preview/QuickLook; visual fidelity check. |
+| Phase 3 — Add Graphviz adapter | DONE (agent) | 2026-04-27 (Phase 3 begin) | 2026-04-27 (this session) | 1d0fe447b (code+tests+cache+PROGRESS, auto-backup-captured) | 14/14 ✓ + 60/60 fast suite | ~30m | New `GraphvizAdapter` (`dot -Tsvg`), REGISTRY+BLOCK_RE+`_FENCE_TO_LANG`+dispatcher fence-tag list extended. Sandbox `_RENDER_TEST_graphviz.md` (3 DOT blocks: simple digraph / labeled edges / clustered subgraph). Pre-flight `dot - graphviz version 14.1.5` (Apple Silicon brew). User gate: open `_RENDER_TEST_graphviz.md` cached SVGs in Preview/QuickLook; visual fidelity check. |
 | Phase 4 — Add D2 adapter | Not Started | | | | | | 1–2h est. Parallelizable with 3,5–7. |
 | Phase 5 — Add LilyPond adapter | Not Started | | | | | | 2–3h est. Parallelizable. |
 | Phase 6 — Add RDKit adapter | Not Started | | | | | | 2–3h est. Parallelizable. |
@@ -88,6 +88,8 @@ _(Most recent first — reverse chronological)_
 - Initial test run had `test_markdown_io_finds_mixed_tikz_and_graphviz` failing because `BLOCK_RE` didn't yet match `graphviz`. The failure was the EXPECTED red-phase behavior, not a bug — fixed by extending the regex alternation.
 
 **Tests:** 14/14 Phase 3 (11 fast + 3 slow). Full fast suite 60/60 across all phases (12 Phase 1 + 36 Phase 2 + 11 Phase 3 + 1 deselect-marker counted as suite-level = 60). No Phase 1 / Phase 2 regressions.
+
+**Commit accounting:** Auto-backup hash `1d0fe447b` (2026-04-27 13:54) captured all Phase 3 work atomically (code + tests + sandbox + PROGRESS + cache deltas + auxiliary journal/archive files), exactly as in Phase 1 v2's CSS commit (`84ccae5ac`) and Phase 2's code commit (`2aaf1f5b5`) — the auto-backup happened to fire in the middle of the agent's "atomic" staging window and swept everything in one go. The follow-up PROGRESS-only commit in this iteration just records the hash. Net Phase 3 history is two commits: the auto-backup (everything) + the hash-pointer log entry (this commit).
 
 **AC mapping:**
 
