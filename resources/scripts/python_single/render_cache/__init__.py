@@ -246,15 +246,17 @@ def sweep_orphans(dry_run: bool) -> int:
 def find_all_md_with_blocks() -> list[Path]:
     """Return markdown files containing at least one supported codeblock fence.
 
-    When Phase 6 adds ``smiles``, append its fence tag to ``fence_tags`` so
-    ``--all`` walks Markdown for the new language too. (Phase 5 added
-    ``lilypond``; the list is now 5 items, which is the threshold the
-    Phase 3/4 lessons flagged for a derive-from-REGISTRY refactor —
-    deferred to Phase 6 as one final additive change so the refactor
-    lands with the full v1 language set in view, see PROGRESS D5.6.)
+    The fence-tag list is the v1 language surface (now 6 items including
+    ``tikz-paused``). Phase 6 deliberately keeps the explicit list rather
+    than refactoring to derive-from-``REGISTRY`` (D6.7): the SMILES adapter
+    is the Phase 6 mandate; bundling a 3-module refactor into the same diff
+    muddles review/triage. The refactor is queued for a follow-up commit;
+    the cost of one more list-edit per future language remains low.
     """
     files: list[Path] = []
-    fence_tags = ("tikz", "tikz-paused", "graphviz", "d2", "lilypond")
+    fence_tags = (
+        "tikz", "tikz-paused", "graphviz", "d2", "lilypond", "smiles",
+    )
     for root in SCAN_ROOTS:
         for md in root.rglob("*.md"):
             try:
