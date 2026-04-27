@@ -1,8 +1,8 @@
 # Obsidian Render Cache — Specification
 
-**Status:** Draft
+**Status:** Final
 **Created:** 2026-04-26
-**Last Updated:** 2026-04-26
+**Last Updated:** 2026-04-27
 **Author:** Christian Stelmach
 **Slug:** `render-cache`
 **Predecessor:** `docs/specs/tikz-cache/` (TikZ-only PNG pipeline; superseded)
@@ -1268,14 +1268,14 @@ isn't lost.
 
 ## 11. Approval
 
-**This SPEC is awaiting user review.**
+**Status:** Approved 2026-04-27 by Christian Stelmach via `/execute-spec` invocation.
 
-Once approved:
+Approval actions completed:
 
-1. Status changes to **Final**
-2. `PROGRESS.md` is created at `docs/specs/render-cache/PROGRESS.md`
-3. Implementation team executes `PLAN.md` Phase 1
-4. Each phase ends at a "Direct user feedback (gate)" before the next begins
+1. ✅ Status changed to **Final** (header above)
+2. ✅ `PROGRESS.md` created at `docs/specs/render-cache/PROGRESS.md`
+3. ⏳ Implementation team executes `PLAN.md` Phase 1 (next iteration)
+4. ⏳ Each phase ends at a "Direct user feedback (gate)" before the next begins
 
 ---
 
