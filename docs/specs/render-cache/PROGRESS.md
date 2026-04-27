@@ -2,10 +2,10 @@
 
 **Spec:** `/Users/cs/Obsidian/_/docs/specs/render-cache/SPEC.md`
 **Plan:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PLAN.md`
-**Status:** Not Started
+**Status:** Blocked at Phase 1 pre-flight (dvisvgm not installed — user decision required)
 **Mode:** Manual (user-driven phase progression)
 **Started:** 2026-04-27
-**Last Updated:** 2026-04-27
+**Last Updated:** 2026-04-27 09:17
 
 > **Mode note:** PLAN.md L4 declares manual mode. SPEC §11.4 requires each
 > phase to end at a "Direct user feedback (gate)" before the next begins.
@@ -32,7 +32,7 @@
 
 | Phase | Status | Started | Completed | Commit | Tests | Duration | Notes |
 |-------|--------|---------|-----------|--------|-------|----------|-------|
-| Phase 1 — Migration: PNG → SVG via dvisvgm | Not Started | | | | | | 3–5h est. Pre-flight 0.1–0.7 required. |
+| Phase 1 — Migration: PNG → SVG via dvisvgm | Blocked | 2026-04-27 09:17 | | | | | **BLOCKED** at pre-flight 0.3: dvisvgm not installed. TeX Live BASIC scheme. User decision required. |
 | Phase 2 — Restructure into render_cache package | Not Started | | | | | | 2–4h est. Depends on Phase 1. |
 | Phase 3 — Add Graphviz adapter | Not Started | | | | | | 1–2h est. Parallelizable with 4–7 after Phase 2. |
 | Phase 4 — Add D2 adapter | Not Started | | | | | | 1–2h est. Parallelizable with 3,5–7. |
@@ -57,6 +57,54 @@
 ## Log
 
 _(Most recent first — reverse chronological)_
+
+### Phase 1 — Pre-Flight BLOCKED — 2026-04-27 09:17
+
+**What Was Done:**
+- Ran mandatory pre-flight checks 0.1–0.7 from PLAN.md.
+- 0.1 vault root: `OK`
+- 0.2 lualatex: `/Library/TeX/texbin/lualatex` ✓
+- 0.3 **dvisvgm: FAIL — `dvisvgm not found`** ← blocker
+- 0.4–0.7: not run (gated on 0.3)
+- Inventoried sibling tools at `/Library/TeX/texbin/`: `dvi2fax, dvilualatex, dviluatex, dvipdfm, dvipdfmx, dvipdft, dvips, dvired, dvitomp, gftodvi`. dvisvgm absent.
+- Searched `/Library/TeX`, `/usr/local`, `/opt/homebrew`, `/usr/local/texlive` — no dvisvgm anywhere.
+- Root-caused with `tlmgr --version`: TeX Live 2025 **BASIC** scheme installed at `/usr/local/texlive/2025basic` (owned by `root:wheel`, write requires sudo). The basic scheme deliberately omits dvisvgm.
+- Confirmed availability via two install paths:
+  - `tlmgr info dvisvgm` → version 3.6, ~16 MB binary, `installed: No`. Adds dvisvgm to the **existing** TeX Live install. Sudo required.
+  - `brew info dvisvgm` → version 3.6 (bottled). Pulls in 6 deps including a duplicate `texlive` (~5+ GB). Not advisable while TeX Live is already present.
+
+**What Worked:**
+- The PLAN's pre-flight gate did its job — caught a missing dependency before any code change. Exact behavior intended by SPEC §11.4 / decision tree.
+- `tlmgr info dvisvgm` returned full package metadata even with the network-restricted "frozen 2025 release" warning, so we can quote the exact size and version.
+
+**What Didn't Work:**
+- The PLAN's "Pre-Plan State" table at L36 asserted dvisvgm was "Available via TeX Live `/Library/TeX/texbin/dvisvgm`". This was incorrect — only the basic scheme was installed. The "verified 2026-04-26" claim in the table header had no evidence behind it for this specific row. **Lesson recorded below.**
+
+**Decisions Made:**
+- **D-pf-1:** Status set to `Blocked` (not `In Progress` or `Not Started`). Rationale: agent literally cannot proceed; user action required (sudo install or scope change). Per decision tree: "Pre-flight (mandatory) all pass? — NO ► Stop. Resolve. Tell user."
+- **D-pf-2:** Did NOT install dvisvgm autonomously despite tlmgr install being the obvious resolution. Rationale: CLAUDE.md safety rule on "actions visible to others or that affect shared state" applies — installing system-level binaries with sudo modifies a shared TeX Live install. Confirmation required.
+
+**Deviations from Plan:**
+- Phase 1 work blocked before starting. No code changes made.
+
+**Lessons Learned (added to Common Errors):**
+- **PLAN/SPEC pre-plan tables can drift from reality.** Always run pre-flight commands as the first agent action, not trust the table. Single-point-of-failure dependency assertions deserve `which $TOOL` verification at SPEC time, not just install-time.
+- **Distinguish TeX Live schemes (basic / small / medium / full / scheme-tetex).** `lualatex` present does not imply `dvisvgm` present — the BASIC scheme excludes a large portion of what scheme-full ships.
+
+**User Decision Required (resolution options):**
+
+| # | Option | Command(s) | Footprint | Reversibility | Risk |
+|---|---|---|---|---|---|
+| A | `tlmgr install dvisvgm` (recommended) | `sudo tlmgr install dvisvgm` | +16 MB binary into existing TL install | `sudo tlmgr remove dvisvgm` | Low. tlmgr complained that the 2025 release is "frozen" — the install may still work via local mirror, but might require `--repository=ctan` retry. |
+| B | `brew install dvisvgm` | `brew install dvisvgm` | +5 GB+ (pulls in duplicate `texlive`) | `brew uninstall dvisvgm` (deps remain unless `brew autoremove`) | High footprint. Risk of PATH precedence conflicts between brew TeX and `/Library/TeX/texbin`. |
+| C | Switch from dvisvgm to alternate DVI→SVG path | requires SPEC change | unknown | n/a | High — invalidates D04 (decision: dvisvgm) and §3.7 T1 (mandatory `--no-fonts`). v1 was sized around dvisvgm. |
+| D | Skip render-cache v1; revert to legacy `tikz_cache.py` PNG | n/a | 0 | n/a | Defeats the point of the SPEC. |
+
+**Tests:** N/A — no code changes. PROGRESS.md only.
+
+**Next:** Awaiting user decision on installation path. After install: re-run pre-flight 0.3, 0.4 (`dvisvgm --version | head -1` ≥ 3.0), then resume Phase 1 from Task 1.1.
+
+---
 
 ### Initialization — 2026-04-27 PLANNING
 
@@ -124,7 +172,7 @@ _(Entries added after each phase completion. Empty at initialization.)_
 
 ### Common Errors & Solutions
 
-_(Documented for future iterations as we hit them.)_
+- **PLAN "Pre-Plan State" table claimed `/Library/TeX/texbin/dvisvgm` was present (2026-04-27).** It was not — TeX Live BASIC scheme installed, dvisvgm excluded. Resolution: run `which dvisvgm` BEFORE trusting any plan table, and resolve via `sudo tlmgr install dvisvgm` (preferred over brew because it adds to the existing TL install instead of duplicating it). Sibling tools `dvilualatex`, `dvips`, `dvipdfm` being present does NOT imply dvisvgm is present.
 
 ---
 
