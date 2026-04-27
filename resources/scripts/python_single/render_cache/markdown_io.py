@@ -1,15 +1,16 @@
 """Markdown code-block extraction and image-reference helpers.
 
-Phase 2 covers TikZ blocks (``tikz`` and ``tikz-paused``). Phases 3-6 extend
-the regex to ``graphviz``, ``d2``, ``lilypond``, ``smiles``.
+Phase 2 covers TikZ blocks (``tikz`` and ``tikz-paused``). Phase 3 adds
+``graphviz``. Phases 4-6 will extend to ``d2``, ``lilypond``, ``smiles``.
 
 Both ``tikz`` and ``tikz-paused`` are matched and BOTH normalise to
 ``language="tikz"`` for hash purposes — pausing or unpausing a block is a
 display-only change and must not invalidate the cache.
 
 The image alt-tag ``tikz-cache`` is preserved for backward compatibility with
-``.obsidian/snippets/tikz-cache.css``. When non-TikZ adapters arrive, the alt
-tag may evolve (out of scope for Phase 2).
+``.obsidian/snippets/tikz-cache.css`` — used for ALL adapters in v1, including
+graphviz/d2/etc. SPEC OQ9 tracks the eventual rename to ``render-cache``,
+deferred to Phase 12 migration.
 """
 from __future__ import annotations
 
@@ -20,8 +21,10 @@ from dataclasses import dataclass
 # Match a fenced block in a v1-supported language.
 # Captures: (1) full fence line including lang, (2) raw fence-language tag,
 # (3) inner code (everything between the open fence and the closing ```).
+# When a new language adapter is added (Phases 4-6), append its fence tag to
+# the alternation below AND register the canonical mapping in _FENCE_TO_LANG.
 BLOCK_RE = re.compile(
-    r"^(```(tikz(?:-paused)?))\n(.*?)\n```",
+    r"^(```(tikz(?:-paused)?|graphviz))\n(.*?)\n```",
     re.DOTALL | re.MULTILINE,
 )
 
@@ -36,6 +39,7 @@ CACHE_REF_RE = re.compile(
 _FENCE_TO_LANG = {
     "tikz": "tikz",
     "tikz-paused": "tikz",
+    "graphviz": "graphviz",
 }
 
 

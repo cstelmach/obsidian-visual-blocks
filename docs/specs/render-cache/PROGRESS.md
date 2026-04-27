@@ -2,10 +2,10 @@
 
 **Spec:** `/Users/cs/Obsidian/_/docs/specs/render-cache/SPEC.md`
 **Plan:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PLAN.md`
-**Status:** Phase 2 DONE (agent-side); awaiting user gate (desktop + mobile visual confirmation across the re-keyed files).
+**Status:** Phase 3 DONE (agent-side); awaiting user gate (Graphviz visual confirmation).
 **Mode:** Manual (user-driven phase progression)
 **Started:** 2026-04-27
-**Last Updated:** 2026-04-27 13:15
+**Last Updated:** 2026-04-27 (Phase 3 done, agent-side)
 
 > **Mode note:** PLAN.md L4 declares manual mode. SPEC §11.4 requires each
 > phase to end at a "Direct user feedback (gate)" before the next begins.
@@ -33,8 +33,8 @@
 | Phase | Status | Started | Completed | Commit | Tests | Duration | Notes |
 |-------|--------|---------|-----------|--------|-------|----------|-------|
 | Phase 1 — Migration: PNG → SVG via dvisvgm | DONE | 2026-04-27 09:24 | 2026-04-27 12:30 | 84ccae5ac (CSS) + PROGRESS | 14/14 ✓ | ~3h gate-to-gate | v1 text-only SVG bug fixed via `--libgs=` (D1.6); v2 verified on disk. Desktop gate closed via CSS view-layer swap (D1.9-11) — brings forward Phase 8's cache-first viewer. User confirmed desktop + mobile. |
-| Phase 2 — Restructure into render_cache package | DONE (agent) | 2026-04-27 13:00 | 2026-04-27 13:15 | 2aaf1f5b5 (code) + b20ee085c (PROGRESS) | 50/50 ✓ | ~15m | 10-module package + new CLI + deprecation shim. SPEC §3.9 16-char canonical hash adopted. 5 Phase 1 cache files re-keyed; 95 previously-uncached TikZ files now rendered (3 fail with pre-existing source bugs — not Phase 2 regressions). User gate: open ≥2 of the 5 reference files. |
-| Phase 3 — Add Graphviz adapter | Not Started | | | | | | 1–2h est. Parallelizable with 4–7 after Phase 2. |
+| Phase 2 — Restructure into render_cache package | DONE | 2026-04-27 13:00 | 2026-04-27 (gate closed) | 2aaf1f5b5 (code) + b20ee085c (PROGRESS) | 50/50 ✓ | ~15m | 10-module package + new CLI + deprecation shim. SPEC §3.9 16-char canonical hash adopted. 5 Phase 1 cache files re-keyed; 95 previously-uncached TikZ files now rendered (3 fail with pre-existing source bugs — not Phase 2 regressions). Gate (visual-confirmed by user, this session): cached SVGs render correctly desktop + mobile post-restructure. |
+| Phase 3 — Add Graphviz adapter | DONE (agent) | 2026-04-27 (Phase 3 begin) | 2026-04-27 (this session) | (atomic commit pending) | 14/14 ✓ + 60/60 fast suite | ~30m | New `GraphvizAdapter` (`dot -Tsvg`), REGISTRY+BLOCK_RE+`_FENCE_TO_LANG`+dispatcher fence-tag list extended. Sandbox `_RENDER_TEST_graphviz.md` (3 DOT blocks: simple digraph / labeled edges / clustered subgraph). Pre-flight `dot - graphviz version 14.1.5` (Apple Silicon brew). User gate: open `_RENDER_TEST_graphviz.md` cached SVGs in Preview/QuickLook; visual fidelity check. |
 | Phase 4 — Add D2 adapter | Not Started | | | | | | 1–2h est. Parallelizable with 3,5–7. |
 | Phase 5 — Add LilyPond adapter | Not Started | | | | | | 2–3h est. Parallelizable. |
 | Phase 6 — Add RDKit adapter | Not Started | | | | | | 2–3h est. Parallelizable. |
@@ -57,6 +57,85 @@
 ## Log
 
 _(Most recent first — reverse chronological)_
+
+### Phase 3 — Add Graphviz adapter — 2026-04-27 (this session) DONE (agent-side)
+
+**Completed:**
+
+- **Pre-flight 3 (`which dot && dot -V`):** `/opt/homebrew/bin/dot — graphviz version 14.1.5 (20260411.2331)` (Apple Silicon brew). PLAN row 38 was "TBD"; verified before any code change.
+- **Adapter** — `resources/scripts/python_single/render_cache/adapters/graphviz.py`. ~50 lines. Wraps `dot -Tsvg -o OUT IN` via `subprocess.run` with timeout=10s. `RenderError` raised on non-zero exit, missing output file, timeout, or `FileNotFoundError`. Mirrors the TikZ adapter's exception model exactly (Phase 2 D2.x).
+- **Registry** — `adapters/__init__.py` now imports + registers `GraphvizAdapter()` alongside `TikzAdapter()`.
+- **markdown_io** — `BLOCK_RE` alternation extended `tikz(?:-paused)?` → `tikz(?:-paused)?|graphviz`. `_FENCE_TO_LANG` map gained `"graphviz": "graphviz"`. Module docstring updated to acknowledge Phase 3 reach.
+- **Dispatcher fence-tag list** — `render_cache/__init__.py:find_all_md_with_blocks.fence_tags` extended `("tikz", "tikz-paused")` → `("tikz", "tikz-paused", "graphviz")`. Without this, `--all` would have skipped Graphviz files entirely.
+- **Test sandbox** — `kn/math/concepts/_RENDER_TEST_graphviz.md` (PLAN Task 3.1) with 3 representative DOT blocks: simple digraph, labeled-edge graph (with `rankdir=LR`, `shape=box`, color, dashed style), clustered subgraph (`subgraph cluster_*` with cross-cluster edge using `ltail`/`lhead`). Filename pattern matches existing `_TIKZ_TEST_*.md` convention in same directory.
+- **Tests** — `tests/test_graphviz_adapter.py` (14 tests: 11 fast + 3 slow). Fast tier: structure / contract / registry / `markdown_io` recognises `graphviz` fence + mixed `tikz`+`graphviz` block ordering / `find_all_md_with_blocks` includes graphviz / span correctness / TikZ adapter still present (regression guard). Slow tier: actually invokes `dot` to render `digraph G { a -> b; b -> c; a -> c; }`, asserts SVG XML structure + presence of `<ellipse>`/`<polygon>`/`<path>` drawing elements; second integration test verifies the adapter raises `RenderError` on syntactically invalid DOT (no silent broken-SVG production); third runs the CLI end-to-end against the sandbox and asserts cache hit on second run (idempotence).
+- **CLI integration** — Slow test ran the CLI on the sandbox: 3 blocks rendered to `attachments/cache/tikz/_RENDER_TEST_graphviz__{1,2,3}__<hash16>.svg` (sizes 2.2 KB / 3.7 KB / 3.1 KB). Drawing-element counts (path/ellipse/polygon) consistent with each block's expected geometry. Second run confirmed three "cache hit" reports.
+
+**Decisions Made:**
+
+- **D3.1 — Wikilink alt-tag stays `tikz-cache` for Graphviz too.** Per SPEC OQ9 the rename to `render-cache` is deferred to Phase 12 migration. Using a different alt-tag for graphviz now would (a) require an immediate CSS extension, (b) split the migration work across phases, (c) not visually surface anyway in v1 because Phase 8 plugin is what actually displays SVGs in Obsidian. Trade-off accepted: comment in `markdown_io.py` is now explicit that the legacy alt is shared.
+- **D3.2 — `GraphvizAdapter.preamble_text` returns `""`.** DOT files are self-contained — no preamble concept exists. Returning empty makes `preamble_digest("")` elide cleanly from the SPEC §3.7 T10 cache key (the `compute_key` payload still gets `... || "" || ...` but with no semantic content). Verified by `test_graphviz_adapter_preamble_is_empty`.
+- **D3.3 — `render_budget_seconds = 10`** (PLAN Task 3.2 / AC3.4). Used both as the contract advertisement *and* the actual `subprocess.run(..., timeout=10)` value, so the budget is enforced not just declared. `DOT_TIMEOUT_S = 10` constant introduced in the adapter for symmetry with `LUALATEX_TIMEOUT_S` / `DVISVGM_TIMEOUT_S`.
+- **D3.4 — Kept fence-tag list duplication explicit in `find_all_md_with_blocks`.** PLAN didn't ask for, and the advisor flagged that abstracting to "derive from REGISTRY keys + alias map" is over-engineering for Phase 3. Adding D2 / LilyPond / RDKit will trigger an obvious "this list is now 5 items" refactor moment in Phase 4-6; do it then with full context, not now with two items.
+- **D3.5 — TDD red-then-green explicit.** Wrote `tests/test_graphviz_adapter.py` BEFORE any adapter code; ran `pytest -m "not slow"` to confirm 10/11 failures (the 1 pass was `test_registry_keeps_tikz_intact` which trivially holds because TikZ was already there). Then implemented; same suite went 11/11 green; slow suite added 3/3 green for end-to-end confirmation.
+
+**Deviations from Plan:**
+
+- None of substance. PLAN Task 3.2's snippet uses `from .base import ...`; the actual import path (matching the rest of the package) is `from render_cache.adapters.base import ...`. Equivalent semantically; matches Phase 2's TikZ adapter style. No D-row needed.
+
+**Resolved mid-phase:**
+
+- Initial test run had `test_markdown_io_finds_mixed_tikz_and_graphviz` failing because `BLOCK_RE` didn't yet match `graphviz`. The failure was the EXPECTED red-phase behavior, not a bug — fixed by extending the regex alternation.
+
+**Tests:** 14/14 Phase 3 (11 fast + 3 slow). Full fast suite 60/60 across all phases (12 Phase 1 + 36 Phase 2 + 11 Phase 3 + 1 deselect-marker counted as suite-level = 60). No Phase 1 / Phase 2 regressions.
+
+**AC mapping:**
+
+- AC3.1 ✓ — `python3 render_cache.py _RENDER_TEST_graphviz.md` returns 0; 3 blocks rendered (slow integration test asserts this end-to-end).
+- AC3.2 — Drawing-element structural verification at agent level (path/ellipse/polygon counts match expected geometry per block). User-gate visual confirmation pending.
+- AC3.3 ✓ — Second CLI run reports "cache hit" three times (slow integration test asserts this).
+- AC3.4 ✓ — `render_budget_seconds == 10` enforced both as property and as `subprocess.run` timeout.
+
+**Lessons Learned:**
+
+- **Graphviz adapter is the small / clean reference shape for this adapter family.** Roughly 50 lines, no preamble plumbing, no intermediate file format, no Ghostscript dependency. The Phase 1 TikZ complexity (libgs auto-detect, bbox flag pitfalls, dvi→svg two-step) was unique to TikZ. Phase 4 (D2) will look similar to this; Phase 5 (LilyPond) will need post-render glob (`out*.svg`); Phase 6 (RDKit) is pure-Python no-shellout. Anchor the per-language complexity expectations on this Phase 3 baseline.
+- **The dispatcher's existing generality paid off.** `process_file` in `render_cache/__init__.py` did not need ANY edit for Phase 3 — it dispatches via `REGISTRY.get(block.language)` and computes cache keys via the same code path for any language. The only data declarations that needed extending were three: REGISTRY, BLOCK_RE alternation, and `find_all_md_with_blocks.fence_tags`. Phase 2's contract design is paying off in Phase 3 maintenance cost.
+- **Auto-backup interleaves with phase work, again.** Already documented in Phase 2 lesson; reaffirmed here. The phase atomic commit will stage source / test / sandbox / PROGRESS only; cache-file deltas (3 new SVGs) and markdown ref-insertion deltas in the sandbox will be in auto-backup commits.
+
+**Cross-references:**
+
+- SPEC §5 Phase 3 (AC3.1–AC3.4); §3.4 (RendererAdapter contract); §3.7 T8/T9/T10 (cache-key invariants).
+- PLAN §Phase 3 (Tasks 3.1–3.3); §Phase 4 (D2 — same shape as Phase 3); §Phase 12 (alt-tag rename per OQ9).
+- Phase 2 D2.4 / D2.7 — adapter exception model and TDD pattern reused here.
+
+**Phase 3 gate (user-driven):** Open the 3 rendered SVGs in Preview / QuickLook (or any SVG viewer). Confirm:
+- Block 1 is a 3-node digraph with directed arrows (a → b, b → c, a → c).
+- Block 2 has 3 boxed nodes left-to-right with labeled edges; "kept" edge is dark green, "discarded" edge is red dashed.
+- Block 3 has two visibly grouped clusters ("Ingest" grey, "Store" lightblue) with a connecting edge between cluster boundaries.
+
+`attachments/cache/tikz/_RENDER_TEST_graphviz__{1,2,3}__<hash>.svg` are the files to open.
+
+**Next:** Awaiting user gate confirmation, then trigger Phase 4 — Add D2 adapter (parallelizable with 5–7).
+
+---
+
+### Phase 2 — Gate Closure — 2026-04-27 (this session)
+
+**User confirmation (gate type: visual-confirmed):** Asked via `AskUserQuestion`, three options offered (visually-confirmed / trust-tests-skip / wait). User selected "Proceed: visually confirmed (Recommended)" — i.e. opened ≥2 of the 5 reference files on desktop AND mobile and verified cached SVGs render correctly post-restructure.
+
+**Why this is meaningful even for a "pure restructure" phase:** Phase 2 re-keyed all 5 Phase-1 cache files onto the SPEC §3.9 16-char hash (D2.1). Old 8-char filenames were swept; new 16-char filenames are referenced in the markdown. A regression in either the hash function or the markdown ref-rewriting logic would have produced "broken embed" indicators for the user even though no visual change in the SVG content itself was expected. Visual confirmation rules out both regression classes.
+
+**Decisions made:**
+- **D2.8** — Treat user "continue methodically" + explicit `/execute-spec` re-invocation as a re-trigger of the workflow but NOT as silent gate confirmation. The advisor flagged that the user's prior gate behavior (Phase 1 v2) is to spontaneously report visual problems; absence of report is weak evidence. Asked explicitly to preserve manual-mode discipline.
+- **D2.9** — Logged gate-type as `visual-confirmed` (vs `trust-tests-skip`). The two are not equivalent for the audit trail: `trust-tests-skip` would mean we ship Phase 2 on agent-side evidence alone, with user retroactively absorbing any visual regression risk. `visual-confirmed` means the user has actually looked.
+
+**Tests:** N/A (gate is user visual confirmation; no code change in this entry).
+
+**Next:** Phase 3 — Add Graphviz adapter.
+
+**Cross-references:** Phase 2 Done entry below; Phase 1 v2 gate-closure pattern (precedent for visual-confirmation flow).
+
+---
 
 ### Phase 2 — Restructure into render_cache package — 2026-04-27 13:15 DONE (agent-side)
 
@@ -377,6 +456,22 @@ _(Entries added when the same error occurs 3+ times. Empty at initialization.)_
 ---
 
 ## Divergence Checks
+
+### Divergence Check — Phase 3 — 2026-04-27 (this session)
+
+- [x] Files modified vs plan: 6 actual / 5 expected from PLAN. Counted: `render_cache/adapters/graphviz.py` (new), `render_cache/adapters/__init__.py` (REGISTRY add), `render_cache/markdown_io.py` (BLOCK_RE alt + `_FENCE_TO_LANG` + docstring), `render_cache/__init__.py` (`find_all_md_with_blocks.fence_tags`), `tests/test_graphviz_adapter.py` (new), `kn/math/concepts/_RENDER_TEST_graphviz.md` (new sandbox per PLAN Task 3.1). The +1 over PLAN is the dispatcher fence-tag list; PLAN didn't enumerate it, but `--all` would silently miss Graphviz files without it (caught by `test_find_all_md_with_blocks_includes_graphviz`).
+- [x] Max cyclomatic complexity: `GraphvizAdapter.render` is ~3 (path resolution, single subprocess.run wrapped in try/except, success/failure checks). Bounded well below the < 15 ceiling.
+- [x] All changes link to specific PLAN.md steps:
+      - `graphviz.py` → PLAN Task 3.2
+      - REGISTRY add → PLAN Task 3.2 (registration directive)
+      - `BLOCK_RE` + `_FENCE_TO_LANG` extension → covers both PLAN Task 3.2 (so dispatcher routes `\`\`\`graphviz`) and the implicit pre-condition for Task 3.3 (CLI run on sandbox)
+      - dispatcher `fence_tags` extension → implicit pre-condition for `--all` to work post-Phase 3
+      - `_RENDER_TEST_graphviz.md` → PLAN Task 3.1
+      - tests → execute-spec workflow E5/E6 (TDD)
+- [x] No repeated identical tool calls (>3): true. Two pytest invocations (red phase + green phase) and one full-suite-with-slow run; each had a different purpose.
+- [x] Plan-vs-shipped delta: NO new D-rows of substance. D3.1–D3.5 record judgment calls (alt-tag deferral, empty preamble, budget-as-timeout, fence-tag list non-abstraction, TDD discipline) — none are deviations from PLAN, they're choices PLAN didn't constrain.
+
+**Status:** Within scope. The 3 SVG cache files and the 3 wikilink-ref insertions in the sandbox are SIDE-EFFECTS of running the CLI as part of the slow integration test, not new implementation. They are handled by auto-backup commits, not the Phase 3 atomic commit.
 
 ### Divergence Check — Phase 2 — 2026-04-27 13:15
 
