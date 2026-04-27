@@ -168,7 +168,7 @@ def render_tikz(block: str, output_svg: Path, work_dir: Path) -> tuple[bool, str
              "--no-fonts",
              "--exact-bbox",
              "--bbox=preview",
-             "--output", str(output_svg),
+             f"--output={output_svg}",
              str(dvi_path)],
             capture_output=True, text=True, timeout=DVISVGM_TIMEOUT_S,
         )
