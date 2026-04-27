@@ -1,7 +1,8 @@
 """Markdown code-block extraction and image-reference helpers.
 
 Phase 2 covers TikZ blocks (``tikz`` and ``tikz-paused``). Phase 3 adds
-``graphviz``. Phases 4-6 will extend to ``d2``, ``lilypond``, ``smiles``.
+``graphviz``. Phase 4 adds ``d2``. Phases 5-6 will extend to ``lilypond``
+and ``smiles``.
 
 Both ``tikz`` and ``tikz-paused`` are matched and BOTH normalise to
 ``language="tikz"`` for hash purposes — pausing or unpausing a block is a
@@ -24,7 +25,7 @@ from dataclasses import dataclass
 # When a new language adapter is added (Phases 4-6), append its fence tag to
 # the alternation below AND register the canonical mapping in _FENCE_TO_LANG.
 BLOCK_RE = re.compile(
-    r"^(```(tikz(?:-paused)?|graphviz))\n(.*?)\n```",
+    r"^(```(tikz(?:-paused)?|graphviz|d2))\n(.*?)\n```",
     re.DOTALL | re.MULTILINE,
 )
 
@@ -40,6 +41,7 @@ _FENCE_TO_LANG = {
     "tikz": "tikz",
     "tikz-paused": "tikz",
     "graphviz": "graphviz",
+    "d2": "d2",
 }
 
 

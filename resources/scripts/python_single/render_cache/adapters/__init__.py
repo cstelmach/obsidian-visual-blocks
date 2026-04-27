@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from render_cache.adapters.d2 import D2Adapter
 from render_cache.adapters.graphviz import GraphvizAdapter
 from render_cache.adapters.tikz import TikzAdapter
 
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
 REGISTRY: "dict[str, RendererAdapter]" = {
     "tikz": TikzAdapter(),
     "graphviz": GraphvizAdapter(),
+    "d2": D2Adapter(),
 }
 
 

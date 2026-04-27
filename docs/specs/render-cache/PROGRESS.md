@@ -2,10 +2,10 @@
 
 **Spec:** `/Users/cs/Obsidian/_/docs/specs/render-cache/SPEC.md`
 **Plan:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PLAN.md`
-**Status:** Phase 3 DONE (agent-side); awaiting user gate (Graphviz visual confirmation).
+**Status:** Phase 4 DONE (agent-side); awaiting user gate (D2 visual confirmation). Phase 3 user gate closed this session.
 **Mode:** Manual (user-driven phase progression)
 **Started:** 2026-04-27
-**Last Updated:** 2026-04-27 (Phase 3 done, agent-side)
+**Last Updated:** 2026-04-27 (Phase 4 done, agent-side)
 
 > **Mode note:** PLAN.md L4 declares manual mode. SPEC §11.4 requires each
 > phase to end at a "Direct user feedback (gate)" before the next begins.
@@ -34,8 +34,8 @@
 |-------|--------|---------|-----------|--------|-------|----------|-------|
 | Phase 1 — Migration: PNG → SVG via dvisvgm | DONE | 2026-04-27 09:24 | 2026-04-27 12:30 | 84ccae5ac (CSS) + PROGRESS | 14/14 ✓ | ~3h gate-to-gate | v1 text-only SVG bug fixed via `--libgs=` (D1.6); v2 verified on disk. Desktop gate closed via CSS view-layer swap (D1.9-11) — brings forward Phase 8's cache-first viewer. User confirmed desktop + mobile. |
 | Phase 2 — Restructure into render_cache package | DONE | 2026-04-27 13:00 | 2026-04-27 (gate closed) | 2aaf1f5b5 (code) + b20ee085c (PROGRESS) | 50/50 ✓ | ~15m | 10-module package + new CLI + deprecation shim. SPEC §3.9 16-char canonical hash adopted. 5 Phase 1 cache files re-keyed; 95 previously-uncached TikZ files now rendered (3 fail with pre-existing source bugs — not Phase 2 regressions). Gate (visual-confirmed by user, this session): cached SVGs render correctly desktop + mobile post-restructure. |
-| Phase 3 — Add Graphviz adapter | DONE (agent) | 2026-04-27 (Phase 3 begin) | 2026-04-27 (this session) | 1d0fe447b (code+tests+cache+PROGRESS, auto-backup-captured) | 14/14 ✓ + 60/60 fast suite | ~30m | New `GraphvizAdapter` (`dot -Tsvg`), REGISTRY+BLOCK_RE+`_FENCE_TO_LANG`+dispatcher fence-tag list extended. Sandbox `_RENDER_TEST_graphviz.md` (3 DOT blocks: simple digraph / labeled edges / clustered subgraph). Pre-flight `dot - graphviz version 14.1.5` (Apple Silicon brew). User gate: open `_RENDER_TEST_graphviz.md` cached SVGs in Preview/QuickLook; visual fidelity check. |
-| Phase 4 — Add D2 adapter | Not Started | | | | | | 1–2h est. Parallelizable with 3,5–7. |
+| Phase 3 — Add Graphviz adapter | DONE | 2026-04-27 (Phase 3 begin) | 2026-04-27 (this session) | 1d0fe447b (code+tests+cache+PROGRESS, auto-backup-captured) | 14/14 ✓ + 60/60 fast suite | ~30m | New `GraphvizAdapter` (`dot -Tsvg`), REGISTRY+BLOCK_RE+`_FENCE_TO_LANG`+dispatcher fence-tag list extended. Sandbox `_RENDER_TEST_graphviz.md` (3 DOT blocks: simple digraph / labeled edges / clustered subgraph). Pre-flight `dot - graphviz version 14.1.5` (Apple Silicon brew). User gate closed this session ("All three visible in Preview / Quicklook"). |
+| Phase 4 — Add D2 adapter | DONE (agent) | 2026-04-27 (this session) | 2026-04-27 (this session) | (auto-backup pending) + PROGRESS commit | 14/14 ✓ + 71/71 fast suite | ~25m | New `D2Adapter` (`d2 --layout=elk --pad=20 --theme=0 --bundle=true`). Pre-flight: `d2 0.7.1` installed via `brew install d2` this session (PLAN per-language pre-flight policy authorised). REGISTRY/BLOCK_RE/`_FENCE_TO_LANG`/dispatcher fence-tag list extended (4 items). Sandbox `_RENDER_TEST_d2.md` (3 D2 blocks: simple graph / d2-specific shapes / nested containers). User gate: open `_RENDER_TEST_d2.md` cached SVGs in Preview/QuickLook; visual fidelity check. |
 | Phase 5 — Add LilyPond adapter | Not Started | | | | | | 2–3h est. Parallelizable. |
 | Phase 6 — Add RDKit adapter | Not Started | | | | | | 2–3h est. Parallelizable. |
 | Phase 7 — Apply SVG postprocessing hardening | Not Started | | | | | | 4–6h est. Depends on Phase 2. |
@@ -57,6 +57,83 @@
 ## Log
 
 _(Most recent first — reverse chronological)_
+
+### Phase 4 — Add D2 adapter — 2026-04-27 (this session) DONE (agent-side)
+
+**Completed:**
+
+- **Pre-flight 4 (`which d2 && d2 --version`):** Initially failed — d2 not installed. PLAN per-language pre-flight section authorises `brew install d2`; asked user via `AskUserQuestion` (4-option gate); user chose "Install via brew (Recommended)". Result: `d2 0.7.1` at `/opt/homebrew/bin/d2`. PLAN minimum was v0.7.0 — passes.
+- **Adapter** — `resources/scripts/python_single/render_cache/adapters/d2.py`. ~70 lines. Wraps `d2 --layout=elk --pad=20 --theme=0 --bundle=true SRC OUT` via `subprocess.run` with `timeout=15s`. `RenderError` raised on non-zero exit, missing output file, timeout, or `FileNotFoundError`. Mirrors the Graphviz adapter's exception model (D3.x).
+- **Registry** — `adapters/__init__.py` now imports + registers `D2Adapter()` alongside `TikzAdapter()` and `GraphvizAdapter()`. Three-language registry.
+- **markdown_io** — `BLOCK_RE` alternation extended `tikz(?:-paused)?|graphviz` → `tikz(?:-paused)?|graphviz|d2`. `_FENCE_TO_LANG` map gained `"d2": "d2"`. Module docstring updated to acknowledge Phase 4 reach (Phases 5-6 still ahead).
+- **Dispatcher fence-tag list** — `render_cache/__init__.py:find_all_md_with_blocks.fence_tags` extended to `("tikz", "tikz-paused", "graphviz", "d2")` (now 4 items). Without this, `--all` would have skipped D2 files entirely.
+- **Test sandbox** — `kn/math/concepts/_RENDER_TEST_d2.md` with 3 representative D2 blocks: smallest-meaningful 3-node graph; D2-specific surface (`shape: queue`, `shape: cylinder`, multi-line node labels via `\n`, `style.stroke-dash` on connection); nested containers (`{ … }` blocks with cross-container edge using dotted-path syntax `ingest.parse -> store.index`). Filename pattern matches existing `_RENDER_TEST_*.md` convention.
+- **Tests** — `tests/test_d2_adapter.py` (14 tests: 11 fast + 3 slow). Fast tier: structure / contract / registry / `markdown_io` recognises `d2` fence + mixed `tikz`+`graphviz`+`d2` block ordering / `find_all_md_with_blocks` includes d2 / span correctness / TikZ + Graphviz adapters still present (regression guard). Slow tier: actually invokes `d2` to render the 3-node simple graph, asserts SVG XML structure + presence of `<rect>`/`<path>` drawing elements; second integration test verifies the adapter raises `RenderError` on syntactically invalid D2 source (no silent broken-SVG production); third runs the CLI end-to-end against the sandbox and asserts cache hit on second run (idempotence).
+- **CLI integration** — Slow test ran the CLI on the sandbox: 3 blocks rendered to `attachments/cache/tikz/_RENDER_TEST_d2__{1,2,3}__<hash16>.svg` (sizes 11.0 / 19.2 / 21.6 KB). Drawing-element counts (rect + path) consistent with each block's expected geometry: #1 has 5 rects + 3 paths (3 nodes + 3 edges); #2 has 6 rects + 7 paths (3 nodes with extra shape outlines + 3 edges); #3 has 9 rects + 3 paths (2 container outlines + 4 inner nodes + 1 cross-container edge + intra-container edges as paths). Second run confirmed three "cache hit" reports.
+- **Index.json** — `attachments/cache/tikz/index.json` now carries `_RENDER_TEST_d2.md` with 3 blocks at language `d2` and the 16-char canonical SHA-256 hashes verified above.
+
+**Decisions Made:**
+
+- **D4.1 — Wikilink alt-tag stays `tikz-cache` for D2 too.** Reaffirms D3.1. Per SPEC OQ9 the rename to `render-cache` is deferred to Phase 12 migration. Using a different alt-tag for d2 now would split the migration work across phases without UI benefit (Phase 8 plugin handles display anyway).
+- **D4.2 — `D2Adapter.preamble_text` returns `""`.** Reaffirms D3.2. D2 source is self-contained; no preamble concept. `preamble_digest("")` is elided cleanly from the SPEC §3.7 T10 cache key.
+- **D4.3 — `render_budget_seconds = 15`.** PLAN was silent on the value. Graphviz used 10s. d2 + ELK is a Go binary doing first-compile cold start which can run slower than `dot`; 15s gives modest headroom without approaching d2's own 120s default. Used both as the contract advertisement *and* the actual `subprocess.run(timeout=15)` value (consistent with D3.3 enforcement principle). `D2_TIMEOUT_S = 15` constant in the adapter for symmetry with `DOT_TIMEOUT_S` / `LUALATEX_TIMEOUT_S` / `DVISVGM_TIMEOUT_S`.
+- **D4.4 — All four CLI flags declared explicitly: `--layout=elk --pad=20 --theme=0 --bundle=true`.** Per PLAN reference command. `--bundle=true` is d2 0.7.1's default but declaring it explicitly protects the cache contract from a future d2 default flip (e.g., if d2 ever changes default to bundle=false, our cache files would silently start needing external assets). `--layout=elk` is the non-default choice (default is `dagre`); ELK gives better hierarchical layout for the diagram styles we author.
+- **D4.5 — Fence-tag list still duplicated; refactor deferred again.** Reaffirms D3.4. The list in `find_all_md_with_blocks` is now 4 items. Phase 5 (LilyPond) or Phase 6 (RDKit) is the natural moment for the "derive from REGISTRY keys + alias map" abstraction — five items is when it stops being trivial.
+- **D4.6 — TDD red-then-green explicit.** Wrote `tests/test_d2_adapter.py` BEFORE any adapter code; ran `pytest -m "not slow"` to confirm 10/11 failures (the 1 pass was `test_registry_keeps_tikz_and_graphviz_intact` — trivially holds because phases 2/3 already wired those). Then implemented; same suite went 11/11 green; slow suite added 3/3 green for end-to-end confirmation. Same pattern as D3.5.
+
+**Deviations from Plan:**
+
+- None of substance. PLAN's reference command is verbatim what shipped. The `D2_TIMEOUT_S` constant value (15s vs PLAN's silent default) is logged in D4.3.
+
+**Tests:** 14/14 Phase 4 (11 fast + 3 slow). Full fast suite 71/71 across all phases (12 Phase 1 + 36 Phase 2 + 11 Phase 3 + 11 Phase 4 + 1 deselect-marker counted at suite level = 71). No Phase 1 / Phase 2 / Phase 3 regressions.
+
+**AC mapping:**
+
+- AC4.1 ✓ — `python3 render_cache.py _RENDER_TEST_d2.md` returns 0; 3 blocks rendered (slow integration test asserts this end-to-end).
+- AC4.2 — Drawing-element structural verification at agent level (rect + path counts match expected geometry per block). User-gate visual confirmation pending.
+- AC4.3 ✓ — Second CLI run reports "cache hit" three times (slow integration test asserts this).
+
+**Lessons Learned:**
+
+- **D2 adapter is the cleanest reference shape so far.** ~70 lines, no preamble plumbing, no Ghostscript dependency, straightforward CLI semantics with non-zero exit on failure (no silent broken SVGs). Phase 5 (LilyPond) will be longer because of the `out*.svg` glob (LilyPond names its outputs). Phase 6 (RDKit) is pure-Python — no shellout at all.
+- **Per-language pre-flight is best gated by `AskUserQuestion`.** `brew install` is technically authorised by PLAN but counts as a system change. The 4-option gate (install / install-manually / skip / defer) preserves user agency without blocking forever. Took ~30s of user time; logged the install hash + version explicitly in the log.
+- **The dispatcher's existing generality continues to pay off.** `process_file` in `render_cache/__init__.py` did not need ANY edit for Phase 4 — same as Phase 3. Three data declarations (REGISTRY, BLOCK_RE, fence_tags) + one new adapter file. The refactor cost per language is now flat at ~85 lines (~70 adapter + ~15 wiring).
+- **d2 0.7.1's behaviour matched the PLAN's command verbatim.** Pre-flight smoke (`d2 --layout=elk --pad=20 --theme=0 --bundle=true smoke.d2 smoke.svg`) produced a valid SVG (`<svg xmlns ...>` + `<rect>` + `<path>`). Invalid input returned exit=1 with stderr error messages, no broken SVG written. The PLAN's reference command was correctly captured at write time.
+
+**Cross-references:**
+
+- SPEC §5 Phase 4 (AC4.1–AC4.3); §3.4 (RendererAdapter contract); §3.7 T8/T9/T10 (cache-key invariants).
+- PLAN §Phase 4 (reference command); §Phase 5 (LilyPond — `out*.svg` glob is the next adapter shape change); §Phase 12 (alt-tag rename per OQ9).
+- Phase 3 D3.1-D3.5 — adapter exception model, preamble convention, TDD pattern, fence-tag list deferral all reused here.
+
+**Phase 4 gate (user-driven):** Open the 3 rendered SVGs in Preview / QuickLook (or any SVG viewer). Confirm:
+- Block 1 is a 3-node graph with directed arrows (a → b → c, a → c).
+- Block 2 has 3 distinct node shapes: a default rectangle "API\n(REST)", a queue-shape "Message Queue", a cylinder-shape "Persistent Store"; edges labeled "enqueue" / "persist" / "query results"; the "query results" edge is dashed.
+- Block 3 has two visibly grouped containers ("Ingest" outer label, "Store" outer label) each with two internal nodes connected, plus one cross-container edge labeled "hand-off" from `parse` to `index`.
+
+`attachments/cache/tikz/_RENDER_TEST_d2__{1,2,3}__<hash>.svg` are the files to open.
+
+**Reading-mode note:** Same as Phase 3 — opening `_RENDER_TEST_d2.md` in Obsidian Reading mode will show both the D2 codeblock *and* the SVG stacked, because there is no `.block-language-d2` hide rule until Phase 8 plugin lands. This is expected, not a regression. Use Preview / QuickLook for the gate.
+
+**Next:** Awaiting user gate confirmation, then trigger Phase 5 — Add LilyPond adapter (parallelizable with 6, 7).
+
+---
+
+### Phase 3 — Gate Closure — 2026-04-27 (this session)
+
+**User confirmation (gate type: visual-confirmed):** "user gate passed. All three visible in Preview / Quicklook" — user opened the 3 sandbox SVGs in Preview / QuickLook and confirmed visual fidelity for the simple digraph, labeled-edge graph, and clustered subgraph.
+
+**Why this gate matters:** Graphviz is a brand-new adapter family in v1; no prior cached SVGs to fall back on. A regression in the new `dot -Tsvg` adapter or the dispatcher's language routing would produce malformed output. Visual confirmation rules out adapter-level regression.
+
+**Decisions made:** None new — gate-closure pattern is the same as Phase 1 v2 / Phase 2 (D2.8/D2.9).
+
+**Tests:** N/A (gate is user visual confirmation; no code change in this entry).
+
+**Next:** Phase 4 — Add D2 adapter (this session, immediately following).
+
+**Cross-references:** Phase 3 Done entry below; Phase 1 v2 / Phase 2 gate-closure pattern.
+
+---
 
 ### Phase 3 — Add Graphviz adapter — 2026-04-27 (this session) DONE (agent-side)
 
