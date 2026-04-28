@@ -1,0 +1,96 @@
+/**
+ * Pure-function tests for src/render.ts argv builder + shell escape.
+ * The actual subprocess spawn is smoke-tested at the user gate (it depends
+ * on macOS PATH + Python install state).
+ */
+import { buildSpawnArgs, shellEscape } from "../src/render";
+import { DEFAULT_SETTINGS } from "../src/settings";
+
+describe("shellEscape", () => {
+  it("wraps a plain string in single quotes", () => {
+    expect(shellEscape("hello")).toBe("'hello'");
+  });
+
+  it("escapes embedded single quotes via canonical POSIX trick", () => {
+    expect(shellEscape("can't")).toBe("'can'\\''t'");
+  });
+
+  it("preserves spaces", () => {
+    expect(shellEscape("a b c")).toBe("'a b c'");
+  });
+
+  it("preserves filesystem-unsafe characters intact inside quotes", () => {
+    expect(shellEscape("$(rm -rf /)")).toBe("'$(rm -rf /)'");
+    expect(shellEscape("`whoami`")).toBe("'`whoami`'");
+    expect(shellEscape("&&&")).toBe("'&&&'");
+  });
+
+  it("handles empty string", () => {
+    expect(shellEscape("")).toBe("''");
+  });
+});
+
+describe("buildSpawnArgs (direct mode)", () => {
+  const settings = { ...DEFAULT_SETTINGS, useLoginShell: false };
+
+  it("returns [pythonPath, scriptPath, ...args]", () => {
+    const r = buildSpawnArgs(settings, ["--all", "--force"]);
+    expect(r.command).toBe("python3");
+    expect(r.args).toEqual([
+      "resources/scripts/python_single/render_cache.py",
+      "--all",
+      "--force",
+    ]);
+  });
+
+  it("respects custom pythonPath (e.g., conda env)", () => {
+    const conda = { ...settings, pythonPath: "/opt/miniconda/bin/python3" };
+    const r = buildSpawnArgs(conda, ["FILE.md"]);
+    expect(r.command).toBe("/opt/miniconda/bin/python3");
+    expect(r.args).toEqual([
+      "resources/scripts/python_single/render_cache.py",
+      "FILE.md",
+    ]);
+  });
+});
+
+describe("buildSpawnArgs (login shell mode)", () => {
+  const settings = { ...DEFAULT_SETTINGS, useLoginShell: true };
+
+  it("wraps in $SHELL -lc with shell-escaped command line", () => {
+    const r = buildSpawnArgs(settings, ["--sweep"], "/bin/zsh");
+    expect(r.command).toBe("/bin/zsh");
+    expect(r.args).toEqual([
+      "-lc",
+      "'python3' 'resources/scripts/python_single/render_cache.py' '--sweep'",
+    ]);
+  });
+
+  it("falls back to /bin/zsh when shellEnv is missing and SHELL env is unset", () => {
+    const orig = process.env.SHELL;
+    delete process.env.SHELL;
+    try {
+      const r = buildSpawnArgs(settings, ["--all"]);
+      expect(r.command).toBe("/bin/zsh");
+    } finally {
+      if (orig !== undefined) process.env.SHELL = orig;
+    }
+  });
+
+  it("escapes paths with spaces correctly", () => {
+    const sp = {
+      ...settings,
+      pythonPath: "python3",
+      scriptPath: "scripts/render cache.py",
+    };
+    const r = buildSpawnArgs(sp, ["a file with spaces.md"], "/bin/zsh");
+    expect(r.args[1]).toBe(
+      "'python3' 'scripts/render cache.py' 'a file with spaces.md'",
+    );
+  });
+
+  it("escapes paths with single quotes correctly", () => {
+    const r = buildSpawnArgs(settings, ["it's-a-file.md"], "/bin/zsh");
+    expect(r.args[1]).toContain("'it'\\''s-a-file.md'");
+  });
+});

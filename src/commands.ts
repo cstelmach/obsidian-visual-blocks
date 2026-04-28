@@ -1,0 +1,465 @@
+/**
+ * obsidian-render-cache — Phase 9 command implementations.
+ *
+ * The 7 commands per SPEC §5 Phase 9:
+ *   refresh-block (AC9.1)
+ *   refresh-note  (AC9.2)
+ *   refresh-vault (AC9.3, with streaming progress)
+ *   show-status   (AC9.4)
+ *   sweep         (AC9.5, --sweep)
+ *   toggle-mode   (AC9.6)
+ *   clear-all     (AC9.7, with strong confirmation)
+ *
+ * Pure helpers (`findBlockAtCursorLine`, `nextMode-helper-for-toggle`) are
+ * unit-tested. The Obsidian-side glue is smoke-tested at the user gate.
+ */
+import {
+  App,
+  Modal,
+  Notice,
+  Plugin,
+  TFile,
+  MarkdownView,
+} from "obsidian";
+import {
+  CacheStatus,
+  CacheStatusModal,
+  aggregateStatus,
+} from "./cacheStatus";
+import {
+  RenderCacheSettings,
+  effectiveMode,
+  nextMode,
+} from "./settings";
+import { spawnRender, spawnRenderWithNotice } from "./render";
+
+/** Languages the plugin handles. Single source of truth for command palette
+ *  output; mirrors LANGUAGES in main.ts. */
+const SUPPORTED_LANGUAGES = [
+  "tikz",
+  "graphviz",
+  "d2",
+  "lilypond",
+  "smiles",
+] as const;
+
+/** Find which fenced block contains the given line. Returns blockIdx (0-based,
+ *  counting only blocks of supported languages) or null if cursor is not inside
+ *  one. Pure: no Obsidian deps. */
+export function findBlockAtCursorLine(
+  source: string,
+  cursorLine: number,
+): { blockIdx: number; language: string; lineStart: number; lineEnd: number } | null {
+  const lines = source.split("\n");
+  let blockIdx = -1;
+  let inBlock = false;
+  let blockLang = "";
+  let blockStart = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const fenceMatch = /^```(\w[\w-]*)/.exec(line);
+    if (!inBlock && fenceMatch) {
+      const lang = fenceMatch[1].toLowerCase();
+      if (
+        (SUPPORTED_LANGUAGES as readonly string[]).includes(lang) ||
+        lang === "tikz-paused"
+      ) {
+        inBlock = true;
+        blockLang = lang === "tikz-paused" ? "tikz" : lang;
+        blockStart = i;
+        blockIdx += 1;
+      }
+      continue;
+    }
+    if (inBlock && /^```\s*$/.test(line)) {
+      // closing fence
+      if (cursorLine >= blockStart && cursorLine <= i) {
+        return {
+          blockIdx,
+          language: blockLang,
+          lineStart: blockStart,
+          lineEnd: i,
+        };
+      }
+      inBlock = false;
+      blockStart = -1;
+      blockLang = "";
+    }
+  }
+  return null;
+}
+
+interface IndexShape {
+  notes: Record<string, { blocks: BlockEntry[] }>;
+  preambleHashes?: Record<string, string>;
+  schemaVersion?: number;
+  rendererVersion?: string;
+}
+
+interface BlockEntry {
+  blockIdx: number;
+  language: string;
+  sourceHash: string;
+  cachePath: string;
+  outputBytes: number;
+  outputFormat: string;
+  renderedAt: string | null;
+  rendererVersion: string;
+  lastError: string | null;
+}
+
+/** Plugin context the commands need from main.ts. */
+export interface CommandContext {
+  app: App;
+  plugin: Plugin;
+  settings: () => RenderCacheSettings;
+  vaultRoot: () => string;
+  reloadIndex: () => Promise<void>;
+  getIndex: () => IndexShape | null;
+  cacheRoot: string; // e.g., "attachments/cache/tikz"
+  indexPath: string; // e.g., "attachments/cache/tikz/index.json"
+}
+
+/** Register all 7 commands with the plugin's command palette. */
+export function registerCommands(ctx: CommandContext): void {
+  const p = ctx.plugin;
+
+  p.addCommand({
+    id: "refresh-block",
+    name: "Refresh this block",
+    callback: () => refreshBlock(ctx),
+  });
+
+  p.addCommand({
+    id: "refresh-note",
+    name: "Refresh all blocks in this note",
+    callback: () => refreshNote(ctx),
+  });
+
+  p.addCommand({
+    id: "refresh-vault",
+    name: "Refresh entire vault (with confirmation)",
+    callback: () => refreshVault(ctx),
+  });
+
+  p.addCommand({
+    id: "show-status",
+    name: "Show cache status",
+    callback: () => showStatus(ctx),
+  });
+
+  p.addCommand({
+    id: "sweep",
+    name: "Sweep orphan cache files",
+    callback: () => sweepOrphans(ctx),
+  });
+
+  p.addCommand({
+    id: "toggle-mode",
+    name: "Toggle render mode (hybrid → cache-only → live)",
+    callback: () => toggleMode(ctx),
+  });
+
+  p.addCommand({
+    id: "clear-all",
+    name: "Clear entire cache (DESTRUCTIVE)",
+    callback: () => clearAll(ctx),
+  });
+}
+
+// ─── refresh-block (AC9.1) ────────────────────────────────────────────────
+
+async function refreshBlock(ctx: CommandContext): Promise<void> {
+  const view = ctx.app.workspace.getActiveViewOfType(MarkdownView);
+  if (!view || !view.file) {
+    new Notice("No active markdown view.", 4000);
+    return;
+  }
+  const file = view.file as TFile;
+  const cursor = view.editor.getCursor();
+  const source = view.editor.getValue();
+  const block = findBlockAtCursorLine(source, cursor.line);
+  if (!block) {
+    new Notice(
+      "Place the cursor inside a TikZ / Graphviz / D2 / LilyPond / SMILES code block.",
+      4000,
+    );
+    return;
+  }
+
+  // Find the matching index entry by blockIdx (within the same note).
+  const idx = ctx.getIndex();
+  const entry = idx?.notes[file.path]?.blocks.find(
+    (b) => b.blockIdx === block.blockIdx,
+  );
+  if (entry) {
+    try {
+      const exists = await ctx.app.vault.adapter.exists(entry.cachePath);
+      if (exists) await ctx.app.vault.adapter.remove(entry.cachePath);
+    } catch (err) {
+      console.warn("render-cache: refresh-block remove failed", err);
+    }
+  }
+
+  new Notice(`Refreshing ${block.language} block #${block.blockIdx}…`, 3000);
+  const ok = await spawnRenderWithNotice(
+    ctx.settings(),
+    [file.path],
+    ctx.vaultRoot(),
+    `${block.language} block #${block.blockIdx} refreshed.`,
+  );
+  if (ok) await ctx.reloadIndex();
+}
+
+// ─── refresh-note (AC9.2) ─────────────────────────────────────────────────
+
+async function refreshNote(ctx: CommandContext): Promise<void> {
+  const file = ctx.app.workspace.getActiveFile();
+  if (!file) {
+    new Notice("No active file.", 4000);
+    return;
+  }
+  new Notice(`Refreshing all blocks in ${file.path}…`, 3000);
+  const ok = await spawnRenderWithNotice(
+    ctx.settings(),
+    [file.path, "--force"],
+    ctx.vaultRoot(),
+    `Refreshed: ${file.path}`,
+  );
+  if (ok) await ctx.reloadIndex();
+}
+
+// ─── refresh-vault (AC9.3) ────────────────────────────────────────────────
+
+async function refreshVault(ctx: CommandContext): Promise<void> {
+  const ok = await new Promise<boolean>((resolve) => {
+    new ConfirmationModal(
+      ctx.app,
+      "Refresh entire vault?",
+      "This runs `render_cache.py --all --force` and re-renders every cached " +
+        "block in the vault. May take several minutes for large vaults.",
+      "Refresh vault",
+      resolve,
+    ).open();
+  });
+  if (!ok) return;
+
+  const progress = new ProgressModal(ctx.app, "Vault refresh");
+  progress.open();
+  try {
+    const result = await spawnRender(
+      ctx.settings(),
+      ["--all", "--force"],
+      ctx.vaultRoot(),
+      (line, source) => progress.appendLine(line, source),
+    );
+    progress.setStatus(
+      result.exitCode === 0
+        ? "Done."
+        : `Exited ${result.exitCode}.`,
+    );
+  } catch (err) {
+    progress.setStatus(`Spawn failed: ${String(err)}`);
+  }
+  await ctx.reloadIndex();
+}
+
+// ─── show-status (AC9.4) ──────────────────────────────────────────────────
+
+function showStatus(ctx: CommandContext): void {
+  const idx = ctx.getIndex();
+  const status: CacheStatus = aggregateStatus(idx);
+  new CacheStatusModal(ctx.app, status).open();
+}
+
+// ─── sweep (AC9.5) ────────────────────────────────────────────────────────
+
+async function sweepOrphans(ctx: CommandContext): Promise<void> {
+  new Notice("Sweeping orphans…", 3000);
+  const ok = await spawnRenderWithNotice(
+    ctx.settings(),
+    ["--sweep"],
+    ctx.vaultRoot(),
+    "Sweep complete.",
+  );
+  if (ok) await ctx.reloadIndex();
+}
+
+// ─── toggle-mode (AC9.6) ──────────────────────────────────────────────────
+
+async function toggleMode(ctx: CommandContext): Promise<void> {
+  const settings = ctx.settings();
+  const next = nextMode(settings.mode);
+  settings.mode = next;
+  // Persist via the plugin's saveData (settings is the live reference).
+  const p = ctx.plugin as unknown as { saveSettings: () => Promise<void> };
+  if (typeof p.saveSettings === "function") await p.saveSettings();
+  new Notice(`Render mode: ${next}`, 3000);
+}
+
+// ─── clear-all (AC9.7) ────────────────────────────────────────────────────
+
+async function clearAll(ctx: CommandContext): Promise<void> {
+  const ok = await new Promise<boolean>((resolve) => {
+    new ConfirmationModal(
+      ctx.app,
+      "Clear entire cache?",
+      "DESTRUCTIVE: deletes every cached SVG and the index. The next time " +
+        "you open a note with a supported code block, it will show a cache-miss " +
+        "placeholder until render_cache.py runs again.",
+      "Yes, delete all",
+      resolve,
+    ).open();
+  });
+  if (!ok) return;
+
+  // Walk the cache directory and remove each file. We do NOT rmdir the
+  // top-level container because it is a vault-tracked path.
+  const adapter = ctx.app.vault.adapter;
+  let removed = 0;
+  let errors = 0;
+  try {
+    const list = await adapter.list(ctx.cacheRoot);
+    // Remove the index file and SVGs at the cache root.
+    for (const f of list.files) {
+      try {
+        await adapter.remove(f);
+        removed += 1;
+      } catch {
+        errors += 1;
+      }
+    }
+    // We don't recurse into subdirs in Phase 9 because the current cache
+    // layout puts everything at the top level. Phase 12 will handle the
+    // nested layout when it ships.
+  } catch (err) {
+    new Notice(`Cache directory not found: ${ctx.cacheRoot}`, 4000);
+    return;
+  }
+
+  new Notice(
+    `Cleared cache: ${removed} file(s) removed${errors ? `, ${errors} error(s)` : ""}.`,
+    5000,
+  );
+  await ctx.reloadIndex();
+}
+
+// ─── Confirmation modal (used by refresh-vault + clear-all) ──────────────
+
+class ConfirmationModal extends Modal {
+  private readonly title: string;
+  private readonly body: string;
+  private readonly confirmText: string;
+  private readonly resolve: (ok: boolean) => void;
+  private resolved = false;
+
+  constructor(
+    app: App,
+    title: string,
+    body: string,
+    confirmText: string,
+    resolve: (ok: boolean) => void,
+  ) {
+    super(app);
+    this.title = title;
+    this.body = body;
+    this.confirmText = confirmText;
+    this.resolve = resolve;
+  }
+
+  onOpen(): void {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl("h2", { text: this.title });
+    contentEl.createEl("p", { text: this.body });
+    const btnRow = contentEl.createEl("div", { cls: "render-cache-btn-row" });
+    const cancel = btnRow.createEl("button", { text: "Cancel" });
+    cancel.onclick = () => {
+      this.resolveOnce(false);
+      this.close();
+    };
+    const confirm = btnRow.createEl("button", {
+      text: this.confirmText,
+      cls: "mod-warning",
+    });
+    confirm.onclick = () => {
+      this.resolveOnce(true);
+      this.close();
+    };
+  }
+
+  onClose(): void {
+    this.resolveOnce(false);
+    this.contentEl.empty();
+  }
+
+  private resolveOnce(v: boolean): void {
+    if (this.resolved) return;
+    this.resolved = true;
+    this.resolve(v);
+  }
+}
+
+// ─── Progress modal (refresh-vault streaming) ────────────────────────────
+
+class ProgressModal extends Modal {
+  private readonly title: string;
+  private logEl: HTMLElement | null = null;
+  private statusEl: HTMLElement | null = null;
+
+  constructor(app: App, title: string) {
+    super(app);
+    this.title = title;
+  }
+
+  onOpen(): void {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl("h2", { text: this.title });
+    this.statusEl = contentEl.createEl("p", { text: "Running…" });
+    this.logEl = contentEl.createEl("pre", { cls: "render-cache-log" });
+    this.logEl.style.maxHeight = "300px";
+    this.logEl.style.overflow = "auto";
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
+    this.logEl = null;
+    this.statusEl = null;
+  }
+
+  appendLine(line: string, source: "stdout" | "stderr"): void {
+    if (!this.logEl) return;
+    const span = document.createElement("span");
+    span.textContent = (source === "stderr" ? "[stderr] " : "") + line + "\n";
+    if (source === "stderr") span.style.color = "var(--text-error)";
+    this.logEl.appendChild(span);
+    this.logEl.scrollTop = this.logEl.scrollHeight;
+  }
+
+  setStatus(msg: string): void {
+    if (this.statusEl) this.statusEl.textContent = msg;
+  }
+}
+
+/** Helper: when `effectiveMode` is "live", caller should call this to kick a
+ *  background re-render of the file. Used by main.ts displayCachedBlock when
+ *  mode is live. Returns immediately (fire-and-forget). */
+export function fireLiveRender(
+  ctx: CommandContext,
+  filePath: string,
+): void {
+  void spawnRender(
+    ctx.settings(),
+    [filePath, "--force"],
+    ctx.vaultRoot(),
+  ).then(async (r) => {
+    if (r.exitCode === 0) await ctx.reloadIndex();
+  }).catch((err) => {
+    console.warn("render-cache: live render failed", err);
+  });
+}
+
+/** Re-export for completeness. Allows main.ts to consult the helper without
+ *  importing both modules. */
+export { effectiveMode };
