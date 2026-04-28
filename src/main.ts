@@ -1,45 +1,62 @@
 /**
- * obsidian-render-cache — Phase 8 plugin scaffold.
+ * obsidian-render-cache — Phase 9 plugin (commands + modes + save hook).
  *
- * Architecture: a viewer only. Renders happen at save time via
- * resources/scripts/python_single/render_cache.py (see SPEC §1.2 D04 —
- * Python is canonical writer, plugin reads only).
+ * Architecture: a viewer + thin command surface for Python pipeline.
+ * Renders happen at save time via resources/scripts/python_single/render_cache.py
+ * (SPEC §1.2 D04 — Python is canonical writer, plugin is reader-only).
+ *
+ * Phase 9 adds:
+ *   • 7 commands (refresh-block / refresh-note / refresh-vault / show-status
+ *     / sweep / toggle-mode / clear-all) — see commands.ts.
+ *   • 3 render modes (hybrid / cache-only / live). Mobile auto-overrides to
+ *     cache-only regardless of stored setting.
+ *   • Settings tab — see settings.ts.
+ *   • triggerOnSave: when a markdown file with a supported codeblock is
+ *     saved, automatically run render_cache.py on it (desktop only).
  *
  * For each registered language the plugin:
  *   1. Computes the canonical 16-char SHA-256 cache key from the block
  *      source (see hash.ts; byte-identical to Python compute_key per T12).
  *   2. Looks up the entry in attachments/cache/tikz/index.json by
  *      sourceHash (advisor: first match wins; identical-source duplicates
- *      have identical cached SVGs, so showing the same file twice is
- *      semantically correct).
- *   3. On hit + file exists: emits an <img src=getResourcePath(cachePath)>
- *      (SPEC §3.4 step 3, §3.6 step 4, T7).
- *   4. On miss: emits a platform-aware placeholder. Mobile shows
- *      "Open on desktop"; desktop shows a clickable "Cache miss" hint
- *      that opens a Notice (Phase 9 wires the actual render trigger).
- *
- * Phase 8 acceptance (SPEC §5 Phase 8 AC8.1–AC8.7):
- *   AC8.1 — plugin loads without console errors.
- *   AC8.2 — cached TikZ block displays inline in reading view.
- *   AC8.3 — uncached block shows placeholder.
- *   AC8.4 — Platform.isMobile placeholder reads "Open on desktop".
- *   AC8.5 — desktop placeholder is clickable (Phase 9 wires actual render).
- *   AC8.6 — TS hash matches Python hash (cross-language fixture test).
- *   AC8.7 — source mode untouched (codeblock processors only fire in
- *           reading view + live preview; Cmd+E shows raw markdown).
+ *      have identical cached SVGs).
+ *   3. Mode-aware behavior:
+ *        hybrid     → on hit show img; on miss show clickable placeholder
+ *        cache-only → on hit show img; on miss show non-clickable placeholder
+ *        live       → on every load, fire `render_cache.py FILE.md --force`
+ *                     in the background; show stale cache while it runs;
+ *                     reload index when render returns. AC9.8: fresh mtime
+ *                     on every load.
  */
 import {
   MarkdownPostProcessorContext,
   Notice,
   Platform,
   Plugin,
+  TFile,
+  FileSystemAdapter,
 } from "obsidian";
 import { computeKey } from "./hash";
+import {
+  CommandContext,
+  fireLiveRender,
+  registerCommands,
+} from "./commands";
+import { spawnRender } from "./render";
+import {
+  DEFAULT_SETTINGS,
+  RenderCacheSettings,
+  RenderCacheSettingTab,
+  effectiveMode,
+  isPlaceholderClickable,
+  missMessage,
+} from "./settings";
 
 const LANGUAGES = ["tikz", "graphviz", "d2", "lilypond", "smiles"] as const;
 type Lang = (typeof LANGUAGES)[number];
 
-const INDEX_PATH = "attachments/cache/tikz/index.json";
+const CACHE_ROOT = "attachments/cache/tikz";
+const INDEX_PATH = `${CACHE_ROOT}/index.json`;
 
 interface BlockEntry {
   blockIdx: number;
@@ -61,10 +78,25 @@ interface IndexFile {
 }
 
 export default class RenderCachePlugin extends Plugin {
+  settings: RenderCacheSettings = { ...DEFAULT_SETTINGS };
   private index: IndexFile | null = null;
+  private commandCtx!: CommandContext;
+  private liveRenderInFlight = new Set<string>(); // file paths currently being live-rendered
 
   async onload(): Promise<void> {
+    await this.loadSettings();
     await this.reloadIndex();
+
+    this.commandCtx = {
+      app: this.app,
+      plugin: this,
+      settings: () => this.settings,
+      vaultRoot: () => this.vaultRoot(),
+      reloadIndex: () => this.reloadIndex(),
+      getIndex: () => this.index,
+      cacheRoot: CACHE_ROOT,
+      indexPath: INDEX_PATH,
+    };
 
     for (const lang of LANGUAGES) {
       this.registerMarkdownCodeBlockProcessor(
@@ -78,8 +110,24 @@ export default class RenderCachePlugin extends Plugin {
         },
       );
     }
+
+    registerCommands(this.commandCtx);
+    this.addSettingTab(new RenderCacheSettingTab(this.app, this));
+
+    // triggerOnSave: re-render on file modify (desktop only).
+    this.registerEvent(
+      this.app.vault.on("modify", (file) => {
+        if (Platform.isMobile) return;
+        if (!this.settings.triggerOnSave) return;
+        if (!(file instanceof TFile)) return;
+        if (file.extension !== "md") return;
+        void this.maybeReRenderOnSave(file);
+      }),
+    );
+
     console.log(
-      `obsidian-render-cache: loaded; processors registered for ${LANGUAGES.join(", ")}`,
+      `obsidian-render-cache: loaded; processors registered for ${LANGUAGES.join(", ")}; ` +
+        `mode=${this.settings.mode}; triggerOnSave=${this.settings.triggerOnSave}`,
     );
   }
 
@@ -87,8 +135,19 @@ export default class RenderCachePlugin extends Plugin {
     console.log("obsidian-render-cache: unloaded");
   }
 
-  /** Read attachments/cache/tikz/index.json into memory. Phase 8 calls this
-   *  once at load. Phase 9 will refresh on file events. */
+  // ─── settings ─────────────────────────────────────────────────────────
+
+  async loadSettings(): Promise<void> {
+    const raw = (await this.loadData()) as Partial<RenderCacheSettings> | null;
+    this.settings = { ...DEFAULT_SETTINGS, ...(raw ?? {}) };
+  }
+
+  async saveSettings(): Promise<void> {
+    await this.saveData(this.settings);
+  }
+
+  // ─── index ────────────────────────────────────────────────────────────
+
   async reloadIndex(): Promise<void> {
     try {
       const exists = await this.app.vault.adapter.exists(INDEX_PATH);
@@ -104,6 +163,8 @@ export default class RenderCachePlugin extends Plugin {
     }
   }
 
+  // ─── view path ────────────────────────────────────────────────────────
+
   private async displayCachedBlock(
     source: string,
     lang: Lang,
@@ -112,13 +173,35 @@ export default class RenderCachePlugin extends Plugin {
   ): Promise<void> {
     el.empty();
     const wrapper = el.createDiv({ cls: "render-cache-block" });
+    const mode = effectiveMode(this.settings, Platform.isMobile);
+
+    // Live mode (desktop only — mobile auto-overrides to cache-only above).
+    // Fire async re-render of the entire file. Show stale cache or
+    // placeholder in the meantime; reloadIndex on completion (next render
+    // pass on this block will pick up the new entry naturally).
+    if (mode === "live" && !Platform.isMobile && ctx.sourcePath) {
+      if (!this.liveRenderInFlight.has(ctx.sourcePath)) {
+        this.liveRenderInFlight.add(ctx.sourcePath);
+        try {
+          fireLiveRender(this.commandCtx, ctx.sourcePath);
+        } finally {
+          // Clear after a short cooldown so multiple blocks in the same note
+          // don't each fire their own render.
+          setTimeout(
+            () => this.liveRenderInFlight.delete(ctx.sourcePath),
+            5000,
+          );
+        }
+      }
+    }
 
     if (!this.index) {
       this.renderPlaceholder(
         wrapper,
         lang,
-        "Index not loaded. Run render_cache.py to (re)build the cache.",
+        `${lang}: Index not loaded. Run render_cache.py to (re)build the cache.`,
         false,
+        ctx.sourcePath,
       );
       return;
     }
@@ -128,8 +211,9 @@ export default class RenderCachePlugin extends Plugin {
       this.renderPlaceholder(
         wrapper,
         lang,
-        `No preamble hash for "${lang}" in index. Run render_cache.py.`,
+        `${lang}: No preamble hash in index. Run render_cache.py.`,
         false,
+        ctx.sourcePath,
       );
       return;
     }
@@ -138,7 +222,13 @@ export default class RenderCachePlugin extends Plugin {
     const entry = this.findEntry(ctx.sourcePath, key);
 
     if (!entry) {
-      this.renderPlaceholder(wrapper, lang, this.missMessage(), Platform.isDesktop);
+      this.renderPlaceholder(
+        wrapper,
+        lang,
+        missMessage(mode, lang, Platform.isMobile),
+        isPlaceholderClickable(mode, Platform.isMobile),
+        ctx.sourcePath,
+      );
       return;
     }
 
@@ -147,8 +237,9 @@ export default class RenderCachePlugin extends Plugin {
       this.renderPlaceholder(
         wrapper,
         lang,
-        `Cache miss: ${entry.cachePath} is in index but missing on disk.`,
-        Platform.isDesktop,
+        `${lang}: Cache miss — ${entry.cachePath} listed in index but missing on disk.`,
+        isPlaceholderClickable(mode, Platform.isMobile),
+        ctx.sourcePath,
       );
       return;
     }
@@ -164,12 +255,6 @@ export default class RenderCachePlugin extends Plugin {
     });
   }
 
-  /** Find the index entry whose sourceHash matches the computed key.
-   *  Iterates blocks in this note (advisor: first match wins; cachePaths
-   *  for identical-source duplicates differ only by slot index, but the
-   *  rendered SVG is byte-identical, so any matching cache file is correct
-   *  to display).
-   */
   private findEntry(sourcePath: string, key: string): BlockEntry | null {
     if (!this.index) return null;
     const note = this.index.notes[sourcePath];
@@ -177,32 +262,59 @@ export default class RenderCachePlugin extends Plugin {
     return note.blocks.find((b) => b.sourceHash === key) ?? null;
   }
 
-  private missMessage(): string {
-    if (Platform.isMobile) return "Cache miss — open on desktop to render.";
-    return "Cache miss — click here for help (Phase 9 will wire click-to-render).";
-  }
-
   private renderPlaceholder(
     parent: HTMLElement,
     lang: Lang,
     msg: string,
     clickable: boolean,
+    sourcePath: string | null,
   ): void {
     const el = parent.createDiv({
       cls:
         "render-cache-placeholder" + (clickable ? " is-clickable" : ""),
     });
-    el.createSpan({ cls: "render-cache-lang", text: lang });
-    el.appendText(": " + msg);
+    el.appendText(msg);
     if (clickable) {
       el.onclick = () => {
-        new Notice(
-          "Phase 8 placeholder. To render, run:\n" +
-            "  python3 resources/scripts/python_single/render_cache.py <FILE.md>\n" +
-            "Phase 9 will add a 'Refresh this block' command.",
-          6000,
-        );
+        if (!sourcePath) {
+          new Notice("No source path; reload the note and try again.", 4000);
+          return;
+        }
+        new Notice(`Refreshing ${sourcePath}…`, 3000);
+        void this.runRenderForFile(sourcePath);
       };
+    }
+  }
+
+  /** Click-to-render handler. Runs render_cache.py FILE.md (no --force) so
+   *  only the missing block actually compiles. Reloads index on success. */
+  private async runRenderForFile(filePath: string): Promise<void> {
+    try {
+      const result = await spawnRender(
+        this.settings,
+        [filePath],
+        this.vaultRoot(),
+      );
+      if (result.exitCode === 0) {
+        await this.reloadIndex();
+        new Notice(
+          `Render complete. Reload the note to see the diagram.`,
+          4000,
+        );
+      } else {
+        new Notice(
+          `render_cache.py exited ${result.exitCode}.\n` +
+            (result.stderr.trim().slice(0, 600) ||
+              result.stdout.trim().slice(0, 600) ||
+              "(no diagnostic)"),
+          8000,
+        );
+      }
+    } catch (err) {
+      new Notice(
+        `Spawn failed: ${String(err)}.\nCheck Python path settings.`,
+        8000,
+      );
     }
   }
 
@@ -213,4 +325,62 @@ export default class RenderCachePlugin extends Plugin {
       `obsidian-render-cache: ${lang} block failed — ${String(err)}`,
     );
   }
+
+  // ─── triggerOnSave ────────────────────────────────────────────────────
+
+  private modifyDebounce = new Map<string, number>();
+
+  private async maybeReRenderOnSave(file: TFile): Promise<void> {
+    const path = file.path;
+    // Debounce: throttle to one render per file per 3 seconds.
+    const now = Date.now();
+    const last = this.modifyDebounce.get(path) ?? 0;
+    if (now - last < 3000) return;
+    this.modifyDebounce.set(path, now);
+
+    // Only re-render if the file has at least one supported codeblock.
+    let text: string;
+    try {
+      text = await this.app.vault.read(file);
+    } catch {
+      return;
+    }
+    if (!hasSupportedBlock(text)) return;
+
+    try {
+      const result = await spawnRender(
+        this.settings,
+        [path],
+        this.vaultRoot(),
+      );
+      if (result.exitCode === 0) {
+        await this.reloadIndex();
+      } else {
+        console.warn(
+          `render-cache: triggerOnSave on ${path} exited ${result.exitCode}.\n` +
+            result.stderr.slice(0, 400),
+        );
+      }
+    } catch (err) {
+      console.warn("render-cache: triggerOnSave spawn failed", err);
+    }
+  }
+
+  // ─── helpers ──────────────────────────────────────────────────────────
+
+  private vaultRoot(): string {
+    const adapter = this.app.vault.adapter;
+    if (adapter instanceof FileSystemAdapter) {
+      return adapter.getBasePath();
+    }
+    // Mobile path — should never spawn here per AC9.9 mobile auto-override.
+    return "";
+  }
+}
+
+/** True if `text` contains at least one fenced codeblock with a supported
+ *  language tag. Cheap, line-by-line; no full markdown parse. */
+function hasSupportedBlock(text: string): boolean {
+  const re = /^```(tikz(?:-paused)?|graphviz|d2|lilypond|smiles)\b/m;
+  return re.test(text);
 }

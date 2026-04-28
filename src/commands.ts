@@ -187,6 +187,20 @@ async function refreshBlock(ctx: CommandContext): Promise<void> {
     return;
   }
 
+  // CRITICAL: Python reads the file from DISK. If the user edited the block
+  // but hasn't saved, the editor buffer differs from disk content and
+  // `render_cache.py FILE.md` would re-render the OLD content (silent no-op
+  // for the user). Persist the editor buffer first so refresh-block always
+  // reflects the visible source. Advisor §1 (Phase 9 pre-ship review).
+  try {
+    const onDisk = await ctx.app.vault.read(file);
+    if (onDisk !== source) {
+      await ctx.app.vault.modify(file, source);
+    }
+  } catch (err) {
+    console.warn("render-cache: refresh-block disk-sync failed", err);
+  }
+
   // Find the matching index entry by blockIdx (within the same note).
   const idx = ctx.getIndex();
   const entry = idx?.notes[file.path]?.blocks.find(
@@ -219,6 +233,23 @@ async function refreshNote(ctx: CommandContext): Promise<void> {
     new Notice("No active file.", 4000);
     return;
   }
+
+  // Same disk-sync as refresh-block: if the user has unsaved edits in the
+  // current view, persist them first so Python sees the visible source.
+  // Advisor §1 (Phase 9 pre-ship review).
+  const view = ctx.app.workspace.getActiveViewOfType(MarkdownView);
+  if (view?.file?.path === file.path) {
+    try {
+      const buffer = view.editor.getValue();
+      const onDisk = await ctx.app.vault.read(file);
+      if (onDisk !== buffer) {
+        await ctx.app.vault.modify(file, buffer);
+      }
+    } catch (err) {
+      console.warn("render-cache: refresh-note disk-sync failed", err);
+    }
+  }
+
   new Notice(`Refreshing all blocks in ${file.path}…`, 3000);
   const ok = await spawnRenderWithNotice(
     ctx.settings(),

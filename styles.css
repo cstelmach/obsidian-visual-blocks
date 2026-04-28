@@ -79,3 +79,51 @@ body .block-language-smiles {
     margin: 1em 0;
     white-space: pre-wrap;
 }
+
+/* Phase 9 — modals & status output. */
+
+.render-cache-btn-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5em;
+    margin-top: 1em;
+}
+
+.render-cache-table {
+    border-collapse: collapse;
+    margin: 0.75em 0;
+    width: 100%;
+}
+
+.render-cache-table th,
+.render-cache-table td {
+    border-bottom: 1px solid var(--background-modifier-border);
+    padding: 0.4em 0.75em;
+    text-align: left;
+}
+
+.render-cache-table th {
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.render-cache-summary p {
+    margin: 0.4em 0;
+}
+
+.render-cache-summary .render-cache-meta {
+    color: var(--text-muted);
+    font-size: 0.85em;
+}
+
+.render-cache-summary .render-cache-error-note {
+    color: var(--text-error);
+}
+
+.render-cache-log {
+    font-size: 0.8em;
+    background: var(--background-secondary);
+    padding: 0.6em;
+    border-radius: 4px;
+    line-height: 1.4;
+}

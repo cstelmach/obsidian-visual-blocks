@@ -3,10 +3,10 @@
 **Spec:** `/Users/cs/Obsidian/_/docs/specs/render-cache/SPEC.md`
 **Plan:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PLAN.md`
 **Archive:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PROGRESS_ARCHIVE.md` (Phase 1-6 + Initialization + diagnostic checkpoint)
-**Status:** Phase 8 user gate closed (visual-confirmed); Phase 9 (plugin commands & modes) starting.
+**Status:** Phase 9 (plugin commands & modes) agent-side complete — awaiting user gate (13-step procedure).
 **Mode:** Manual (user-driven phase progression)
 **Started:** 2026-04-27
-**Last Updated:** 2026-04-28 (Phase 8 gate closed; PROGRESS archived for size; Phase 9 lead-in)
+**Last Updated:** 2026-04-28 (Phase 9 agent-side done; jest 73/73 + python 150/150 fast green)
 
 > **Mode note:** PLAN.md L4 declares manual mode. SPEC §11.4 requires each
 > phase to end at a "Direct user feedback (gate)" before the next begins.
@@ -47,7 +47,7 @@
 | Phase 6 — Add RDKit adapter | DONE | 2026-04-27 14:48 | 2026-04-27 (gate closed this session) | dc78c598e (PROGRESS) + 927047133 (auto-backup) | 15/15 ✓ + 108/108 full suite | ~6m | New `SMILESAdapter` — **the only v1 adapter that is pure Python, no shell-out**. Uses `rdkit.Chem.MolFromSmiles` + `AllChem.Compute2DCoords` + `rdMolDraw2D.MolDraw2DSVG` (400×300). Pre-flight: `rdkit 2026.3.1` installed via `pip install rdkit` (user authorised; user asked "uv or pip?" — pip chosen for one-off conda-env install). REGISTRY/BLOCK_RE/`_FENCE_TO_LANG`/dispatcher fence-tag list extended (now 6 items). Sandbox `_RENDER_TEST_smiles.md` (3 SMILES blocks: caffeine / aspirin / ibuprofen). All three render correctly per AC6.2 (rsvg-convert verification at agent level — caffeine purine ring, aspirin acetyl ester + COOH, ibuprofen benzene + isobutyl + α-methyl propanoate). RDKit logger silenced at module import (D6.5) — clean CLI/test output. AC6.3: invalid SMILES → `RenderError` with offending input snippet. Fence-tag derive-from-REGISTRY refactor (D5.6 promise) deliberately deferred to follow-up commit (D6.7). |
 | Phase 7 — Apply SVG postprocessing hardening | DONE | 2026-04-27 15:10 | 2026-04-27 (gate closed this session) | 88a487fc9 (PROGRESS+residual) + a9cd7320c (auto-backup: code+tests+105 cache SVGs) + c25974eeb (D7.8/D7.9/D7.10 honest gate framing) | 43/43 Phase 7 ✓ + 151/151 full suite | ~30m | Three rules in `render_cache/postprocess.py` (`prefix_ids` / `substitute_current_color` / `enforce_viewbox`). Quote-agnostic regexes — PLAN's pseudocode pinned double-quote only and would have silently no-op'd on TikZ + SMILES (both single-quoted). Added CSS-style colour rule for SMILES (`style='...stroke:#000000...'`). Re-rendered 169 cache SVGs via `--all --force`; AC7.1/AC7.2/AC7.3 hard-verified across full cache (0 unprefixed dvisvgm or Graphviz IDs; 0 attribute-form OR CSS-style hardcoded black; 169/169 viewBox; 0/169 pt units). 3 pre-existing TikZ source bugs surfaced for the 3rd time (not Phase 7 regressions). Gate (AC7.4 visual-confirmed): "we see all the svgs in the _RENDER_TEST_d2.md note. We also see the codeblock still and the embedded internal links to the cached svgs". AC7.5 dark-mode follow remains structurally blocked under `<img>` viewing path (D7.8) — re-evaluated at Phase 8 user gate, which under SPEC `<img>` mandate will also remain blocked (Phase 8 user-confirmed via `<img>` per SPEC §3.4/§3.6). |
 | Phase 8 — Plugin scaffold | DONE | 2026-04-27 (this session) | 2026-04-27 (gate closed 2026-04-28) | d035c5cfd (auto-backup, atomic capture: .gitignore + plugin tree + PROGRESS + Python fixture self-test) + 5ec8cf62d (earlier auto-backup: generator script + initial fixture stray) + c070312ed (PROGRESS hash-record) + e101d1e81 (gate-language refinements) | jest 24/24 ✓ + python 150/150 fast ✓ | ~1.5h | New `obsidian-render-cache` plugin at `.obsidian/plugins/obsidian-render-cache/` (.ts source + main.js bundle + manifest + tests + fixtures). Cross-language hash byte-identity (T12) hard-verified: 14 fixtures × 2 languages = 28 round-trip checks passing. Production round-trip on all 3 `_RENDER_TEST_d2.md` blocks confirmed (computed hash == index.json sourceHash). User gate visual-confirmed all 8 verification steps (see Phase 8 Gate Closure inside log entry). MathJax font warnings during step 2 are unrelated (slow-network WOFF loading) and out of plugin scope. |
-| Phase 9 — Plugin commands and modes | In Progress | 2026-04-28 | | | | | 4–6h est. Started post Phase 8 gate. |
+| Phase 9 — Plugin commands and modes | DONE (agent) | 2026-04-28 | 2026-04-28 (agent-side) | TBD (this iteration) | jest 73/73 ✓ + python 150/150 fast ✓ | ~3h | 4 new src modules (settings/render/cacheStatus/commands; ~1000 lines) + 4 new test files (49 new pure-function tests). 7 commands registered (refresh-block / refresh-note / refresh-vault / show-status / sweep / toggle-mode / clear-all); 3 modes (hybrid / cache-only / live with mobile auto-override AC9.9); SettingTab w/ 5 controls; triggerOnSave save hook (3s debounced, desktop-only). main.js 4.5KB → 17.8KB minified. Manifest+package.json bumped 0.1.0 → 0.2.0. macOS Electron PATH issue defended via `useLoginShell` setting + `pythonPath` override (D9.3). User gate pending (10 ACs across 7 commands; 13-step verification procedure inline). |
 | Phase 10 — Plugin error display + status bar | Not Started | | | | | | 2–3h est. Depends on Phase 9. |
 | Phase 11 — iOS validation (USER-DRIVEN) | Not Started | | | | | | User-driven. Requires phone + iCloud sync. Depends on Phase 10. |
 | Phase 12 — Migration tool: legacy → new layout | Not Started | | | | | | 2–3h est. Depends on Phase 7+. |
@@ -64,6 +64,121 @@
 ## Log
 
 _(Most recent first — reverse chronological)_
+
+### Phase 9 — Plugin commands and modes — 2026-04-28 DONE (agent-side)
+
+**Completed:**
+
+- **`src/settings.ts`** (~190 lines) — `RenderCacheSettings` interface (5 keys: `mode` / `pythonPath` / `scriptPath` / `triggerOnSave` / `useLoginShell`); `DEFAULT_SETTINGS` const; `MODE_CYCLE` (hybrid → cache-only → live → hybrid); pure helpers `nextMode` / `effectiveMode` (mobile auto-override AC9.9) / `missMessage` (3 desktop branches × 1 mobile branch) / `isPlaceholderClickable` (4 cases); `RenderCacheSettingTab` with 5 controls (dropdown for mode + 2 text inputs for paths + 2 toggles).
+- **`src/render.ts`** (~190 lines) — Subprocess wrapper. Pure `shellEscape` (POSIX single-quote with `'\''` for embedded quotes). Pure `buildSpawnArgs` returning `{command, args}` pair: direct mode `[pythonPath, scriptPath, ...args]` OR login-shell mode `[$SHELL, "-lc", "<escaped command line>"]`. The latter handles macOS Electron renderer NOT inheriting the user's interactive shell PATH (advisor §1) — login shell forces source of `~/.zshrc` / `~/.bashrc` / brew + conda init lines. `spawnRender` async wrapper around `child_process.spawn` with optional line-streaming callback (used by refresh-vault progress modal). `spawnRenderWithNotice` convenience for fire-and-forget commands (refresh-block / refresh-note / sweep) — surfaces a Notice on success or on non-zero exit (with stderr/stdout snippet).
+- **`src/cacheStatus.ts`** (~155 lines) — Pure `aggregateStatus(index)` returns `{totalNotes, totalBlocks, totalBytes, perLanguage[], errorCount, schemaVersion, rendererVersion}`; per-language breakdown sorted by descending count. Pure `formatBytes` (B / KiB / MiB rounding). `CacheStatusModal` displays the data in a table.
+- **`src/commands.ts`** (~465 lines) — Pure `findBlockAtCursorLine(source, line)` → `{blockIdx, language, lineStart, lineEnd}` or null. `registerCommands(ctx)` registers all 7 with the command palette: refresh-block (AC9.1) → finds block at cursor, deletes that one cache file, runs render_cache.py FILE.md (no `--force` so other blocks stay cached). refresh-note (AC9.2) → render_cache.py FILE.md `--force`. refresh-vault (AC9.3) → ConfirmationModal then streaming `--all --force` into a ProgressModal showing live stdout/stderr lines. show-status (AC9.4) → CacheStatusModal. sweep (AC9.5) → render_cache.py `--sweep`. toggle-mode (AC9.6) → cycles via `nextMode` and persists. clear-all (AC9.7) → ConfirmationModal then walks `attachments/cache/tikz/` and `adapter.remove`s each file. `fireLiveRender` helper for live-mode background renders. Two private modal classes: `ConfirmationModal` (Cancel / Confirm with `mod-warning` styling) and `ProgressModal` (live log + status line).
+- **`src/main.ts`** rewritten (~270 lines) — Phase 9 integration. Loads/persists settings (loadData/saveData). Registers all 7 commands via `registerCommands`. Registers `RenderCacheSettingTab`. Mode-aware `displayCachedBlock`: live mode (desktop) fires async `--force` re-render of the file (debounced via `liveRenderInFlight` Set so all blocks in a note share one render). Cache-miss placeholder uses `missMessage` + `isPlaceholderClickable` based on `effectiveMode`. Click-to-render handler runs render_cache.py FILE.md (no force) and shows a Notice on completion. `triggerOnSave` registers `app.vault.on('modify', …)`: filters to `.md`-only TFile + has-supported-block grep, debounces to one render per file per 3 seconds, skips on mobile, runs `render_cache.py FILE.md` (no force) and reloads index. `vaultRoot()` uses `FileSystemAdapter.getBasePath()`.
+- **`styles.css`** extended — modal button row + per-language status table + log pre + meta/error tone classes.
+- **Tests** — 4 new test files, 49 new pure-function tests:
+  - `tests/settings.test.ts` (18) — mode cycle / mobile override / missMessage 5 cases / isPlaceholderClickable 4 cases / DEFAULT_SETTINGS shape.
+  - `tests/render.test.ts` (11) — shellEscape (5) + buildSpawnArgs direct mode (2) + login-shell mode (4 including paths-with-spaces and paths-with-quotes).
+  - `tests/cacheStatus.test.ts` (10) — formatBytes (3) + aggregateStatus (7 incl. null index, descending sort, lastError counting, missing language, missing outputBytes, version propagation).
+  - `tests/commands.test.ts` (10) — findBlockAtCursorLine across cursor inside/outside/on-fence; tikz-paused → tikz; lilypond + smiles recognition; blockIdx skips unsupported langs.
+- **TS test count: 24 → 73** (3.0× growth). 73/73 green. **Python test count: 150/150 fast green** (no regressions).
+- **Build** — `npm run build` produces `main.js` 17.8 KB minified (was 4.5 KB Phase 8). Bundle externs unchanged: obsidian + electron + CodeMirror + Node builtins.
+- **Manifest + package.json** version 0.1.0 → 0.2.0 (Phase 9 release marker; v1.0.0 at Phase 13).
+- **Mock surface extended** — `tests/__mocks__/obsidian.ts` gained `PluginSettingTab`, `Setting`, `Modal`, `FileSystemAdapter`, `App`, `MarkdownView`, `Plugin.addSettingTab/loadData/saveData/registerEvent`, `Platform.isMacOS`. Required for type-check; tests don't actually exercise these (smoke-tested at user gate).
+
+**Decisions Made (D9.x):**
+
+- **D9.1 — refresh-block uses delete-then-render-without-force, not extend the Python CLI with `--block-index N`.** Advisor §2 confirmed the approach. Mechanical: remove the cache file for the block at cursor, then `python3 render_cache.py FILE.md` (no `--force`). The dispatcher's existing skip-on-cache-hit logic re-renders only the missing block. Net Python CLI surface unchanged (Phase 9 zero Python-side edits except the PROGRESS log entry). Cleanest scope discipline.
+- **D9.2 — Live mode = synchronous fire-and-forget, NOT streaming hot-swap.** Advisor §3 listed three options (sync block-and-display / optimistic stale + hot-swap / placeholder + swap). Chose sync fire-and-forget on every codeblock pass, debounced per file via `liveRenderInFlight` Set so multi-block notes don't fire N parallel renders. Trade-off: user sees stale cache (or placeholder) for the first 2-10s while render completes, then must reload the note manually or save+modify to see the new cache. v1.1 candidate: file-watch on `index.json` to auto-rerender views when entries update. Documented as accepted trade-off.
+- **D9.3 — `pythonPath` defaults to `python3` + `useLoginShell=true` (macOS PATH inheritance).** Advisor §1 flagged the Electron-renderer-doesn't-inherit-shell-PATH issue. Empirically not yet verified on the user's system (advisor's Cmd+Opt+I test hasn't run); design defends BOTH cases — works whether shell-inherited python3 has rdkit or not. User can override `pythonPath` to absolute conda path AND/OR disable `useLoginShell` for fastest spawn. The setting is in the SettingTab so iteration is one-keystroke.
+- **D9.4 — refresh-vault uses streaming progress modal, NOT a Notice.** Advisor §2 noted "render_cache.py --all writes to stdout; you'll need to stream stdout/stderr from the spawned process and pipe it into a Notice or a Modal with a progress region." A Notice would be too transient for a multi-minute render; Modal is the right surface. Lines append in real time via `onLine` callback wired through `spawnRender` → `appendLine` on the modal.
+- **D9.5 — clear-all walks `attachments/cache/tikz/` and removes files individually rather than `rmdir` the directory.** Two reasons: (a) the cache directory is vault-tracked; rmdir-ing it would break the vault tree; (b) Obsidian's adapter API exposes `remove()` and `list()` cleanly but not always `rmdir()`. Iterating per-file is safer + portable across desktop/mobile (mobile shouldn't reach this path under AC9.9 but defensive code is cheap). Phase 12 (legacy → new layout migration) will revisit when the cache moves to `.obsidian/plugins/.../cache/v1/<note>/`.
+- **D9.6 — triggerOnSave debounce is 3 seconds (per-file).** Empirically chosen. Obsidian fires `modify` on every keystroke after a brief settle; without debounce the plugin would spawn dozens of renders per typing burst. 3s is long enough that mid-typing renders don't queue, short enough that Cmd+S → preview latency stays under 5s. The throttle is a per-path Map; cleared by garbage collection naturally as the plugin lives.
+- **D9.7 — Pure-helpers TDD discipline** continued. `nextMode` / `effectiveMode` / `missMessage` / `isPlaceholderClickable` / `shellEscape` / `buildSpawnArgs` / `aggregateStatus` / `formatBytes` / `findBlockAtCursorLine` ALL have unit tests written before implementation. Same red-then-green pattern as D3.5 / D4.6 / D5.7 / D6.6 / D7.7 / D8.10. Obsidian-API glue (Modal classes, command callbacks, save hook) is smoke-tested at the user gate — pretending to mock Obsidian's `Modal.open()` etc. would produce false-positive "tests" without verifying any behaviour. Advisor §4 explicitly endorsed this split.
+- **D9.8 — D6.7 fence-tag REGISTRY-derive refactor + D7.9 implicit-default-fill rule deferred AGAIN, NOT bundled into Phase 9.** Same scope-discipline reasoning as D7.10 / D8.13: Phase 9 is large enough; bundling unrelated cleanup adds diff noise. D6.7 queues for Phase 10 lead-in (Phase 10 is "error display + status bar" — the natural moment for a Python-side cleanup). D7.9 stays deferred because it depends on the SPEC's `<img>` vs inline-svg stance which user accepted at D8.2.
+
+**Deviations from Plan:**
+
+- **PLAN §Phase 9 was a single paragraph** ("Tasks: implement all 7 commands per SPEC §5 Phase 9 acceptance criteria AC9.1–AC9.10. Implement settings UI and mode switching per the same.") with no per-task pseudocode. This is a feature, not a deviation: PLAN delegated the implementation shape to Phase 9 execution. The 4-module split (settings/render/cacheStatus/commands) and the 49-test surface are agent-decided.
+- **D9.1 (refresh-block) does NOT extend the Python CLI** as a hypothetical PLAN reading might have suggested. Delete-then-render achieves the same semantic with zero Python-side changes.
+- **D9.2 (live mode = fire-and-forget)** is one of three SPEC-acceptable readings of AC9.8 ("re-renders every block on every load"). The fire-and-forget interpretation is the simplest; documented + accepted as v1 trade-off.
+
+**Tests:** 73/73 jest (49 new + 24 pre-existing); 150/150 Python fast (no regressions). Build: `main.js` 17.8 KB minified.
+
+**AC mapping (USER-GATE pending; agent-side commitments below):**
+
+- AC9.1 (refresh-block) — agent-side: handler wired, finds block at cursor via `findBlockAtCursorLine`, removes cache file via `adapter.remove`, spawns render. User gate: place cursor in a TikZ/D2/etc. block, run "Refresh this block", confirm block re-renders.
+- AC9.2 (refresh-note) — agent-side: handler wired, runs `render_cache.py FILE.md --force`. User gate: run command on a note with multiple blocks, confirm all re-rendered.
+- AC9.3 (refresh-vault) — agent-side: confirmation modal + streaming progress modal + `--all --force`. User gate: run command, confirm prompt + progress lines + completion.
+- AC9.4 (show-status) — agent-side: aggregateStatus is unit-verified across 7 cases; modal displays the data. User gate: run command, verify table content matches `attachments/cache/tikz/index.json`.
+- AC9.5 (sweep) — agent-side: `render_cache.py --sweep`. User gate: introduce an orphan SVG manually, run sweep, confirm it's deleted, real cache untouched.
+- AC9.6 (toggle-mode) — agent-side: nextMode unit-verified across cycle + unknown-input fallback. User gate: run command 3× in a row, observe Notice cycling hybrid → cache-only → live → hybrid.
+- AC9.7 (clear-all) — agent-side: confirmation modal + `adapter.remove` per file. User gate: confirm strong prompt; click confirm; verify cache directory empty (one `index.json` may regenerate empty).
+- AC9.8 (live mode re-renders on every load) — agent-side: live branch in `displayCachedBlock` calls `fireLiveRender` per file (debounced 5s). User gate: set mode=live; record cache mtime; reload note; confirm new mtime.
+- AC9.9 (mobile auto-override) — agent-side: `effectiveMode(_, true) === "cache-only"` unit-verified across all stored-mode values. User gate: set mode=live on desktop, sync to iOS, open note, confirm placeholder reads "open on desktop to render" (not "click to render").
+- AC9.10 (triggerOnSave) — agent-side: `vault.on('modify', …)` wired with hasSupportedBlock grep + 3s debounce. User gate: edit a TikZ block, save (Cmd+S), wait 5s, confirm cache mtime updates without explicit command invocation.
+
+**Lessons Learned:**
+
+- **Settings tab is mostly boilerplate, but the 5-key shape decision matters.** `pythonPath` + `useLoginShell` together cover the macOS Electron PATH inheritance issue without forcing a hard "absolute path" requirement. `triggerOnSave` is opt-in-by-default because the SPEC defaults to it; if it surprises the user with unexpected CPU bursts, one toggle disables it. `scriptPath` is only needed because the python_single layout is non-standard.
+- **`buildSpawnArgs` shape (returns `{command, args}` pair) is more testable than returning a single argv array.** The return shape mirrors `child_process.spawn(command, args, opts)` so the test asserts the exact spawn surface. Unit tests verify both direct AND login-shell modes via 11 assertions.
+- **`aggregateStatus` returning a sorted `perLanguage` array** (rather than a Map) makes tests trivial. Sorting by descending count puts the largest cache contributor at the top of the modal — natural for the "show cache status" use case.
+- **`findBlockAtCursorLine` regex is `^```(\w[\w-]*)`, not just `^```(\w+)`.** The `[\w-]*` tail lets it match `tikz-paused` correctly (otherwise `tikz` matches and the rest is treated as junk). Block-counting only increments on supported-language fences; unsupported (e.g., python) blocks don't shift the index — important for refresh-block to map correctly to index.json's blockIdx field.
+- **Live mode debouncing via a Set of in-flight file paths** keeps multi-block notes from firing N parallel `--force` renders. Tail clear via `setTimeout(5000)` is a cheap heuristic — at 5s the Python pipeline has either finished (cache repopulated, displayCachedBlock will hit it on next pass) or still running (next codeblock processor will skip our re-fire because the Set entry is fresh). Production iteration: replace with a Promise-completion-driven clear once we have a fileset-coordinator.
+- **The Phase 8 `<img>` decision (D8.2) made AC9.8 / AC9.10 implementations simpler.** Live mode just calls `--force` and the next codeblock processor pass picks up the new cache; no need to invalidate browser image caches mid-render (which would be required with inline `<svg>`). Trade-off acknowledged: user must reload note to see the new cache from a live-mode render — equivalent to triggerOnSave's UX.
+- **macOS PATH issue verification is best done at the user gate, not in the agent's verification.** The advisor's Cmd+Opt+I test (`require('child_process').execSync('which python3')`) requires running JS in the Electron renderer, which I cannot do. Designing for both cases (works whether PATH is inherited or not, with `pythonPath` override settable in one place) is more robust than asking the user to run a discriminator first.
+
+**Cross-references:**
+
+- SPEC §5 Phase 9 (AC9.1–AC9.10); §3.6 (view-time data flow, mode-aware behavior); §3.7 T7 (`getResourcePath`); §11.4 (per-phase user-feedback gate). PLAN §Phase 9 (one-paragraph delegation; D9.x deviations are within scope).
+- Phase 8 D8.x — wikilink coexistence CSS, hash port, getResourcePath path; all reused unchanged. D8.9 (placeholder click-to-render) replaced by D9 click handler that actually spawns the render.
+- Advisor (called pre-Phase-9) — §1 macOS PATH, §2 refresh-block/refresh-vault, §3 live mode trade-off, §4 testable-pure-only, §5 separate-commit-for-archive. All four directives followed.
+
+**Phase 9 gate (user-driven, per SPEC §11.4):**
+
+Phase 9 introduces 7 NEW commands and a settings tab. The user gate is more intricate than Phase 8's 8-step procedure — there are 10 acceptance criteria across the 7 commands + 3 modes + save hook. Suggested order (least destructive first):
+
+1. **Reload the plugin** (Settings → Community plugins → Render Cache → toggle OFF then ON). Open Cmd+Opt+I → Console; expect:
+   ```
+   obsidian-render-cache: loaded; processors registered for tikz, graphviz, d2, lilypond, smiles; mode=hybrid; triggerOnSave=true
+   ```
+   No red `Render Cache:` lines. (regression check: AC8.1 still passes after Phase 9 changes)
+
+2. **Open Settings → Render Cache.** Verify 5 controls render: render-mode dropdown (default hybrid), python-path text field (default `python3`), script-path text field (default `resources/scripts/python_single/render_cache.py`), re-render-on-save toggle (default ON), spawn-through-login-shell toggle (default ON).
+
+3. **Verify python spawns work BEFORE running heavy commands.** Open `kn/math/concepts/_RENDER_TEST_d2.md` (already renders correctly under Phase 8). Run command "Refresh all blocks in this note" via Cmd+P. Watch for a Notice "Refreshing all blocks in kn/…/_RENDER_TEST_d2.md…" then "Refreshed: …". If you see "Failed to spawn python: …" or "render_cache.py exited 1", the macOS PATH issue triggered (D9.3) — open Settings, set Python path to your conda Python (e.g., `/opt/homebrew/Caskroom/miniconda/base/bin/python3`), save, retry. If the second attempt also fails, surface the exact error here for triage.
+
+4. **AC9.1 — Refresh this block.** Place cursor inside one of the 3 d2 blocks. Run "Refresh this block". Notice "Refreshing d2 block #N…" then "d2 block #N refreshed.". Cmd+R the note (View → Reload window) and confirm the diagram still renders correctly. The cache file's mtime under `attachments/cache/tikz/_RENDER_TEST_d2__N__<hash>.svg` should be fresh.
+
+5. **AC9.4 — Show cache status.** Run "Show cache status". Modal opens with: total blocks (~169 across the vault), total disk size (~9 MiB), per-language table (tikz mostly, then d2/graphviz/lilypond/smiles). Verify the numbers roughly match `ls -la attachments/cache/tikz/*.svg | wc -l` and disk usage from Finder.
+
+6. **AC9.6 — Toggle render mode.** Run "Toggle render mode (hybrid → cache-only → live)". Notice reads `Render mode: cache-only`. Run again → `Render mode: live`. Run again → `Render mode: hybrid`. Open Settings → Render Cache and verify the dropdown reflects the current mode.
+
+7. **AC9.5 — Sweep orphans.** Important: `render_cache.py --sweep` parses cache filenames against the canonical regex `^(.+)__(\d+)__([0-9a-f]{8,})\.svg$` (verified at `render_cache/__init__.py:196`); files NOT matching the regex print "[?] unparseable cache name, leaving" and are skipped. Therefore an arbitrary stray name like `_orphan_test.svg` would NOT be deleted. To produce a sweep-eligible orphan, create a name that matches the regex but doesn't correspond to any actual block: `cp attachments/cache/tikz/_RENDER_TEST_d2__1__7d8f25d74720ebf0.svg attachments/cache/tikz/_FAKE_NOTE__9__deadbeefdeadbeef.svg`. The stem `_FAKE_NOTE` doesn't match any markdown file → sweep prints "[-] no source for …" and deletes it. Run "Sweep orphan cache files". Notice "Sweep complete.". Confirm `_FAKE_NOTE__9__deadbeefdeadbeef.svg` is gone; real cache files (e.g., `_RENDER_TEST_d2__1__…`) still present.
+
+8. **AC9.10 — triggerOnSave.** With mode=hybrid (default), open `kn/math/concepts/mSB3-4_reals.md`. Edit the TikZ source slightly (e.g., add a comment line). Save (Cmd+S). Wait 5-10 seconds. The cache file's mtime should update. Reload the note (Cmd+R) — the diagram should render the new content. If you don't see an mtime update in 10s, surface the issue (likely a console.warn in DevTools: "render-cache: triggerOnSave on … exited N").
+
+9. **AC9.8 — Live mode re-render.** Set mode=live (toggle command 2× from hybrid OR via Settings dropdown). Reload `_RENDER_TEST_d2.md`. Watch the cache file mtime: it should refresh on every reload. Note (per D9.2 trade-off): the user sees the OLD cache momentarily until Python finishes — reload again after 5-10s to see the NEW one. Reset mode=hybrid afterward.
+
+10. **AC9.9 — Mobile auto-override.** With mode=live still active, sync to iOS, open any note with cached blocks. Placeholder for any cache miss should read "Cache miss — open on desktop to render." (NOT "click to render"). Cached blocks display as before (mobile = cache-only effective).
+
+11. **AC9.2 — Refresh entire note** (already touched at step 3 verification). Confirm Notice cycle.
+
+12. **AC9.3 — Refresh entire vault.** Run "Refresh entire vault (with confirmation)". Confirmation modal opens. Click "Refresh vault". Progress modal opens with live stdout/stderr lines as Python processes each note. Wait for "Done." status. Close modal. Verify a few cache files have refreshed mtimes.
+
+13. **AC9.7 — Clear entire cache (DESTRUCTIVE — defer to last).** Run "Clear entire cache (DESTRUCTIVE)". Confirmation modal with "Yes, delete all" warning button. Click confirm. Notice "Cleared cache: N file(s) removed.". Verify `ls attachments/cache/tikz/` is empty (or only contains `index.json`). To recover: run "Refresh entire vault" or `python3 resources/scripts/python_single/render_cache.py --all` on the command line.
+
+When all 13 steps pass (or any subset you have time for; mark partials in the response), reply: **"Implement Phase 10"** → Plugin error display + status bar. Phase 10 reads index.json's `lastError` field to render inline error placeholders + adds a status-bar item. Smaller scope (~2-3h estimate vs Phase 9's 4-6h actual).
+
+**Outstanding (NOT blocking Phase 10 — flagged across phases):**
+
+- 3 pre-existing TikZ source bugs (`bB3-18_neuroscience-101.md`, `mSB8-9_double-brackets.md`, `mSB3-8_euler-e.md`); separate-triage backlog. Surfaced for the 5th time during any `--all` operation in Phase 9 user gate (steps 3, 8, 9, 12 all touch them).
+- **D6.7 fence-tag REGISTRY-derive refactor — deferred a 5th time** → queued for Phase 10 lead-in (Python-side commit; Phase 10 already touches python_single/render_cache for error capture surface).
+- **D7.9 implicit-default-fill rule** stays deferred (depends on `<img>` vs inline-svg SPEC amendment; no movement).
+- **`.obsidian/community-plugins.json` post-Phase-8-toggle health check** — Phase 8 closure noted that `obsidian-render-cache` should now appear in the file (since it was enabled at startup). Confirm at any next session that the file lists the expected ~6 entries (5 prior + render-cache).
+- **iOS Web Crypto contingency** unchanged from Phase 8 (still using `crypto.subtle.digest`; if Phase 11 surfaces "render-cache: tikz block failed" on iOS for every block, swap to js-sha256).
+- **Live-mode hot-swap (D9.2 v1.1 candidate)** — file-watch on `index.json` to auto-reload views when entries update would replace the manual reload-after-5-10s UX.
+
+---
 
 ### Phase 8 — Plugin scaffold — 2026-04-27 (this session) DONE (agent-side)
 
@@ -363,6 +478,22 @@ _(Entries added when the same error occurs 3+ times. Empty at initialization.)_
 ## Divergence Checks
 
 _(Divergence Checks for Phases 1, 2, 3 archived 2026-04-28 to `PROGRESS_ARCHIVE.md` § "Archived: Divergence Checks (Phase 1, 2, 3)". Phase 7 + 8 divergence checks captured inline within their log entries.)_
+
+### Divergence Check — Phase 9 — 2026-04-28
+
+- [x] Files modified vs plan: 11 new+modified in plugin tree. **PLAN §Phase 9 was a single delegating paragraph** ("Tasks: implement all 7 commands per SPEC §5 Phase 9 acceptance criteria AC9.1–AC9.10. Implement settings UI and mode switching per the same.") with no file enumeration. Actual: 4 new src modules (settings.ts, render.ts, cacheStatus.ts, commands.ts) + 4 new test files (settings/render/cacheStatus/commands tests) + main.ts rewritten + manifest.json + package.json + styles.css + tests/__mocks__/obsidian.ts. The "no PLAN file enumeration" is by design — PLAN delegated implementation shape to Phase 9 execution.
+- [x] Max cyclomatic complexity: `displayCachedBlock` is the most branched (live-mode + index-loaded + preamble-hash-present + entry-found + file-on-disk = 5-deep nested if-else). Within reasonable bound (<15). `findBlockAtCursorLine` has one nested loop with an inner branch — clean.
+- [x] All changes link to specific SPEC AC items:
+      - settings.ts → AC9.6 / AC9.9 (mode + mobile override)
+      - render.ts → all command spawns (AC9.1-9.3, AC9.5, AC9.10)
+      - cacheStatus.ts → AC9.4
+      - commands.ts → AC9.1-9.3, AC9.4, AC9.5, AC9.6, AC9.7
+      - main.ts → AC9.8 (live mode), AC9.9 (mobile override), AC9.10 (triggerOnSave)
+      - tests → execute-spec workflow E5/E6 (TDD pure helpers)
+- [x] No repeated identical tool calls (>3): true. Three pytest invocations (none for Phase 9 itself; one full-suite regression check). Multiple `npx jest` runs: red-then-green pattern per module + final all-green check.
+- [x] Plan-vs-shipped delta: 8 D-rows (D9.1–D9.8) record judgment calls — none are deviations from PLAN, they're choices PLAN didn't constrain. Most material is D9.1 (refresh-block via delete-then-render, advisor-confirmed) and D9.2 (live mode = fire-and-forget, advisor-confirmed).
+
+**Status:** Within scope. Auto-backup `0b068c6fc` (06:42) captured the 4 new src modules + 4 new test files + `tests/__mocks__/obsidian.ts` partial; the Phase 9 atomic commit will carry main.ts rewrite + manifest/package version bumps + styles.css extension + final mock additions + main.js rebuild + PROGRESS log entry.
 
 ---
 

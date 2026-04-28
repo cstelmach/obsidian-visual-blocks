@@ -1,7 +1,7 @@
 {
   "id": "obsidian-render-cache",
   "name": "Render Cache",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "minAppVersion": "1.4.16",
   "description": "Display cached SVGs of TikZ/Graphviz/D2/LilyPond/SMILES code blocks. Renders happen via render_cache.py at save time; the plugin is a viewer only.",
   "author": "cstelmach",

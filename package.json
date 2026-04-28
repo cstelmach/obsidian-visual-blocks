@@ -1,6 +1,6 @@
 {
   "name": "obsidian-render-cache",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Cache-first viewer for TikZ/Graphviz/D2/LilyPond/SMILES code blocks in Obsidian.",
   "main": "main.js",
   "scripts": {

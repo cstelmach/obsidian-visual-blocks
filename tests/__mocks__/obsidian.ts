@@ -79,4 +79,23 @@ export class TFile {
   extension = "md";
 }
 
-export class App {}
+export class App {
+  workspace = {
+    getActiveFile(): unknown { return null; },
+    getActiveViewOfType(_T: unknown): unknown { return null; },
+    on(_e: string, _cb: unknown): unknown { return undefined; },
+  };
+  vault = {
+    adapter: new FileSystemAdapter(),
+    read(_f: unknown): Promise<string> { return Promise.resolve(""); },
+    on(_e: string, _cb: unknown): unknown { return undefined; },
+  };
+}
+
+export class MarkdownView {
+  file: unknown;
+  editor = {
+    getCursor(): { line: number; ch: number } { return { line: 0, ch: 0 }; },
+    getValue(): string { return ""; },
+  };
+}
