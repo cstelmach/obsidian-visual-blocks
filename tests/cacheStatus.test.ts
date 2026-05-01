@@ -2,7 +2,12 @@
  * Pure-function tests for src/cacheStatus.ts aggregator + formatter.
  * The modal class itself is smoke-tested at the user gate.
  */
-import { aggregateStatus, formatBytes } from "../src/cacheStatus";
+import {
+  aggregateNoteStatus,
+  aggregateStatus,
+  formatBytes,
+  statusBarText,
+} from "../src/cacheStatus";
 
 describe("formatBytes", () => {
   it("returns plain bytes for small values", () => {
@@ -18,6 +23,86 @@ describe("formatBytes", () => {
   it("returns MiB at 1024² and above", () => {
     expect(formatBytes(1024 * 1024)).toBe("1.00 MiB");
     expect(formatBytes(8.6 * 1024 * 1024)).toBe("8.60 MiB");
+  });
+});
+
+describe("aggregateNoteStatus", () => {
+  it("returns an empty note status for missing index or missing path", () => {
+    expect(aggregateNoteStatus(null, "a.md")).toEqual({
+      totalBlocks: 0,
+      errorCount: 0,
+    });
+    expect(aggregateNoteStatus({ notes: {} }, "a.md")).toEqual({
+      totalBlocks: 0,
+      errorCount: 0,
+    });
+  });
+
+  it("counts blocks and errors for one note only", () => {
+    const index = {
+      notes: {
+        "a.md": {
+          blocks: [
+            { language: "tikz", outputBytes: 100, cachePath: "x" },
+            {
+              language: "d2",
+              outputBytes: 0,
+              cachePath: "y",
+              lastError: "d2 failed",
+            },
+          ],
+        },
+        "b.md": {
+          blocks: [
+            {
+              language: "smiles",
+              outputBytes: 0,
+              cachePath: "z",
+              lastError: "invalid smiles",
+            },
+          ],
+        },
+      },
+    };
+    expect(aggregateNoteStatus(index, "a.md")).toEqual({
+      totalBlocks: 2,
+      errorCount: 1,
+    });
+  });
+});
+
+describe("statusBarText", () => {
+  it("shows no-cache state for notes without cached blocks", () => {
+    expect(statusBarText({ totalBlocks: 0, errorCount: 0 }, false)).toBe(
+      "no cache",
+    );
+  });
+
+  it("shows idle item count when the current note has cached blocks", () => {
+    expect(statusBarText({ totalBlocks: 3, errorCount: 0 }, false)).toBe(
+      "✓ 3 items",
+    );
+    expect(statusBarText({ totalBlocks: 1, errorCount: 0 }, false)).toBe(
+      "✓ 1 item",
+    );
+  });
+
+  it("prioritizes captured render errors over idle state", () => {
+    expect(statusBarText({ totalBlocks: 3, errorCount: 1 }, false)).toBe(
+      "⚠ 1 failed",
+    );
+    expect(statusBarText({ totalBlocks: 3, errorCount: 2 }, false)).toBe(
+      "⚠ 2 failed",
+    );
+  });
+
+  it("shows rendering progress when the active note is being rendered", () => {
+    expect(statusBarText({ totalBlocks: 5, errorCount: 0 }, true)).toBe(
+      "rendering 1/5…",
+    );
+    expect(statusBarText({ totalBlocks: 0, errorCount: 0 }, true)).toBe(
+      "rendering…",
+    );
   });
 });
 

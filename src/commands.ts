@@ -116,6 +116,7 @@ export interface CommandContext {
   vaultRoot: () => string;
   reloadIndex: () => Promise<void>;
   getIndex: () => IndexShape | null;
+  setRendering?: (sourcePath: string, rendering: boolean) => void;
   cacheRoot: string; // e.g., "attachments/cache/tikz"
   indexPath: string; // e.g., "attachments/cache/tikz/index.json"
 }
@@ -216,13 +217,18 @@ async function refreshBlock(ctx: CommandContext): Promise<void> {
   }
 
   new Notice(`Refreshing ${block.language} block #${block.blockIdx}…`, 3000);
-  const ok = await spawnRenderWithNotice(
-    ctx.settings(),
-    [file.path],
-    ctx.vaultRoot(),
-    `${block.language} block #${block.blockIdx} refreshed.`,
-  );
-  if (ok) await ctx.reloadIndex();
+  ctx.setRendering?.(file.path, true);
+  try {
+    const ok = await spawnRenderWithNotice(
+      ctx.settings(),
+      [file.path],
+      ctx.vaultRoot(),
+      `${block.language} block #${block.blockIdx} refreshed.`,
+    );
+    if (ok) await ctx.reloadIndex();
+  } finally {
+    ctx.setRendering?.(file.path, false);
+  }
 }
 
 // ─── refresh-note (AC9.2) ─────────────────────────────────────────────────
@@ -251,13 +257,18 @@ async function refreshNote(ctx: CommandContext): Promise<void> {
   }
 
   new Notice(`Refreshing all blocks in ${file.path}…`, 3000);
-  const ok = await spawnRenderWithNotice(
-    ctx.settings(),
-    [file.path, "--force"],
-    ctx.vaultRoot(),
-    `Refreshed: ${file.path}`,
-  );
-  if (ok) await ctx.reloadIndex();
+  ctx.setRendering?.(file.path, true);
+  try {
+    const ok = await spawnRenderWithNotice(
+      ctx.settings(),
+      [file.path, "--force"],
+      ctx.vaultRoot(),
+      `Refreshed: ${file.path}`,
+    );
+    if (ok) await ctx.reloadIndex();
+  } finally {
+    ctx.setRendering?.(file.path, false);
+  }
 }
 
 // ─── refresh-vault (AC9.3) ────────────────────────────────────────────────
@@ -277,6 +288,7 @@ async function refreshVault(ctx: CommandContext): Promise<void> {
 
   const progress = new ProgressModal(ctx.app, "Vault refresh");
   progress.open();
+  ctx.setRendering?.("__vault__", true);
   try {
     const result = await spawnRender(
       ctx.settings(),
@@ -291,6 +303,8 @@ async function refreshVault(ctx: CommandContext): Promise<void> {
     );
   } catch (err) {
     progress.setStatus(`Spawn failed: ${String(err)}`);
+  } finally {
+    ctx.setRendering?.("__vault__", false);
   }
   await ctx.reloadIndex();
 }
@@ -480,6 +494,7 @@ export function fireLiveRender(
   ctx: CommandContext,
   filePath: string,
 ): void {
+  ctx.setRendering?.(filePath, true);
   void spawnRender(
     ctx.settings(),
     [filePath, "--force"],
@@ -488,6 +503,8 @@ export function fireLiveRender(
     if (r.exitCode === 0) await ctx.reloadIndex();
   }).catch((err) => {
     console.warn("render-cache: live render failed", err);
+  }).finally(() => {
+    ctx.setRendering?.(filePath, false);
   });
 }
 

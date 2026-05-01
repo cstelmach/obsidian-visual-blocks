@@ -51,6 +51,12 @@ import {
   isPlaceholderClickable,
   missMessage,
 } from "./settings";
+import {
+  CacheStatusModal,
+  aggregateNoteStatus,
+  aggregateStatus,
+  statusBarText,
+} from "./cacheStatus";
 
 const LANGUAGES = ["tikz", "graphviz", "d2", "lilypond", "smiles"] as const;
 type Lang = (typeof LANGUAGES)[number];
@@ -82,6 +88,8 @@ export default class RenderCachePlugin extends Plugin {
   private index: IndexFile | null = null;
   private commandCtx!: CommandContext;
   private liveRenderInFlight = new Set<string>(); // file paths currently being live-rendered
+  private renderingFiles = new Set<string>();
+  private statusBarEl: HTMLElement | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -94,9 +102,26 @@ export default class RenderCachePlugin extends Plugin {
       vaultRoot: () => this.vaultRoot(),
       reloadIndex: () => this.reloadIndex(),
       getIndex: () => this.index,
+      setRendering: (sourcePath, rendering) =>
+        this.setRendering(sourcePath, rendering),
       cacheRoot: CACHE_ROOT,
       indexPath: INDEX_PATH,
     };
+
+    this.statusBarEl = this.addStatusBarItem();
+    this.statusBarEl.classList.add("render-cache-status-bar");
+    this.statusBarEl.onclick = () => {
+      new CacheStatusModal(this.app, aggregateStatus(this.index)).open();
+    };
+    this.registerEvent(
+      this.app.workspace.on("file-open", () => this.updateStatusBar()),
+    );
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", () =>
+        this.updateStatusBar(),
+      ),
+    );
+    this.updateStatusBar();
 
     for (const lang of LANGUAGES) {
       this.registerMarkdownCodeBlockProcessor(
@@ -160,6 +185,8 @@ export default class RenderCachePlugin extends Plugin {
     } catch (err) {
       console.error("obsidian-render-cache: failed to load index", err);
       this.index = null;
+    } finally {
+      this.updateStatusBar();
     }
   }
 
@@ -232,6 +259,17 @@ export default class RenderCachePlugin extends Plugin {
       return;
     }
 
+    if (entry.lastError) {
+      this.renderInlineError(
+        wrapper,
+        lang,
+        entry.lastError,
+        !Platform.isMobile && Boolean(ctx.sourcePath),
+        ctx.sourcePath,
+      );
+      return;
+    }
+
     const fileExists = await this.app.vault.adapter.exists(entry.cachePath);
     if (!fileExists) {
       this.renderPlaceholder(
@@ -288,15 +326,19 @@ export default class RenderCachePlugin extends Plugin {
 
   /** Click-to-render handler. Runs render_cache.py FILE.md (no --force) so
    *  only the missing block actually compiles. Reloads index on success. */
-  private async runRenderForFile(filePath: string): Promise<void> {
+  private async runRenderForFile(
+    filePath: string,
+    force: boolean = false,
+  ): Promise<void> {
+    this.setRendering(filePath, true);
     try {
       const result = await spawnRender(
         this.settings,
-        [filePath],
+        force ? [filePath, "--force"] : [filePath],
         this.vaultRoot(),
       );
+      await this.reloadIndex();
       if (result.exitCode === 0) {
-        await this.reloadIndex();
         new Notice(
           `Render complete. Reload the note to see the diagram.`,
           4000,
@@ -315,6 +357,43 @@ export default class RenderCachePlugin extends Plugin {
         `Spawn failed: ${String(err)}.\nCheck Python path settings.`,
         8000,
       );
+    } finally {
+      this.setRendering(filePath, false);
+    }
+  }
+
+  private renderInlineError(
+    parent: HTMLElement,
+    lang: Lang,
+    message: string,
+    clickable: boolean,
+    sourcePath: string | null,
+  ): void {
+    const el = parent.createDiv({
+      cls:
+        "render-cache-inline-error" + (clickable ? " is-clickable" : ""),
+    });
+    el.createDiv({
+      cls: "render-cache-error-title",
+      text: `${lang}: render failed`,
+    });
+    el.createEl("pre", {
+      cls: "render-cache-error-message",
+      text: message,
+    });
+    el.createDiv({
+      cls: "render-cache-error-help",
+      text: clickable
+        ? "Click to retry this note."
+        : "Open on desktop to retry.",
+    });
+
+    if (clickable) {
+      el.onclick = () => {
+        if (!sourcePath) return;
+        new Notice(`Retrying render for ${sourcePath}…`, 3000);
+        void this.runRenderForFile(sourcePath, true);
+      };
     }
   }
 
@@ -347,15 +426,15 @@ export default class RenderCachePlugin extends Plugin {
     }
     if (!hasSupportedBlock(text)) return;
 
+    this.setRendering(path, true);
     try {
       const result = await spawnRender(
         this.settings,
         [path],
         this.vaultRoot(),
       );
-      if (result.exitCode === 0) {
-        await this.reloadIndex();
-      } else {
+      await this.reloadIndex();
+      if (result.exitCode !== 0) {
         console.warn(
           `render-cache: triggerOnSave on ${path} exited ${result.exitCode}.\n` +
             result.stderr.slice(0, 400),
@@ -363,10 +442,39 @@ export default class RenderCachePlugin extends Plugin {
       }
     } catch (err) {
       console.warn("render-cache: triggerOnSave spawn failed", err);
+    } finally {
+      this.setRendering(path, false);
     }
   }
 
   // ─── helpers ──────────────────────────────────────────────────────────
+
+  private setRendering(sourcePath: string, rendering: boolean): void {
+    if (rendering) this.renderingFiles.add(sourcePath);
+    else this.renderingFiles.delete(sourcePath);
+    this.updateStatusBar();
+  }
+
+  private updateStatusBar(): void {
+    if (!this.statusBarEl) return;
+    const active = this.app.workspace.getActiveFile();
+    const sourcePath = active?.path ?? null;
+    const noteStatus = aggregateNoteStatus(this.index, sourcePath);
+    const isRendering =
+      (sourcePath !== null && this.renderingFiles.has(sourcePath)) ||
+      this.renderingFiles.has("__vault__");
+
+    this.statusBarEl.textContent = statusBarText(noteStatus, isRendering);
+    this.statusBarEl.setAttribute(
+      "title",
+      "Render Cache status — click for cache details",
+    );
+    this.statusBarEl.classList.toggle(
+      "has-error",
+      noteStatus.errorCount > 0 && !isRendering,
+    );
+    this.statusBarEl.classList.toggle("is-rendering", isRendering);
+  }
 
   private vaultRoot(): string {
     const adapter = this.app.vault.adapter;

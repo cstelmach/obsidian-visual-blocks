@@ -101,6 +101,7 @@ def process_file(md_path: Path, force: bool, dry_run: bool) -> int:
 
         rendered = False
         ok = True
+        last_error: str | None = None
         if force or not svg_path.exists():
             print(f"   [{idx}] {block.language} key={key} → render")
             if dry_run:
@@ -118,6 +119,7 @@ def process_file(md_path: Path, force: bool, dry_run: bool) -> int:
                     rendered = True
                 except RenderError as e:
                     print(f"        FAILED: {e}")
+                    last_error = str(e)
                     ok = False
                     failed += 1
                 finally:
@@ -125,22 +127,22 @@ def process_file(md_path: Path, force: bool, dry_run: bool) -> int:
         else:
             print(f"   [{idx}] {block.language} key={key} → cache hit")
 
-        if ok:
-            new_blocks_meta.append(
-                {
-                    "blockIdx": idx - 1,  # SPEC §3.4 uses 0-based block index
-                    "language": block.language,
-                    "sourceHash": key,
-                    "cachePath": _vault_relative(svg_path),
-                    "renderedAt": _utc_now() if rendered else None,
-                    "rendererVersion": RENDERER_VERSION,
-                    "outputFormat": "svg",
-                    "renderMs": None,
-                    "outputBytes": svg_path.stat().st_size if svg_path.exists() else 0,
-                    "lastError": None,
-                }
-            )
+        new_blocks_meta.append(
+            {
+                "blockIdx": idx - 1,  # SPEC §3.4 uses 0-based block index
+                "language": block.language,
+                "sourceHash": key,
+                "cachePath": _vault_relative(svg_path),
+                "renderedAt": _utc_now() if rendered else None,
+                "rendererVersion": RENDERER_VERSION,
+                "outputFormat": "svg",
+                "renderMs": None,
+                "outputBytes": svg_path.stat().st_size if svg_path.exists() else 0,
+                "lastError": None if ok else (last_error or "Render failed"),
+            }
+        )
 
+        if ok:
             block_end = block.span[1]
             new_ref = f"\n\n![[{svg_name}|tikz-cache]]"
             existing, ref_start, ref_end = find_existing_ref(content, block_end)

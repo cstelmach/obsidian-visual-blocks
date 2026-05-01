@@ -80,6 +80,53 @@ body .block-language-smiles {
     white-space: pre-wrap;
 }
 
+.render-cache-inline-error {
+    border: 1px solid var(--text-error);
+    border-left-width: 4px;
+    border-radius: 6px;
+    padding: 0.85em 1em;
+    margin: 1em auto;
+    background: var(--background-secondary);
+    color: var(--text-normal);
+    text-align: left;
+}
+
+.render-cache-inline-error.is-clickable {
+    cursor: pointer;
+}
+
+.render-cache-inline-error.is-clickable:hover {
+    background: var(--background-modifier-hover);
+}
+
+.render-cache-error-title {
+    color: var(--text-error);
+    font-weight: 600;
+    margin-bottom: 0.45em;
+}
+
+.render-cache-error-message {
+    margin: 0;
+    white-space: pre-wrap;
+    font-size: 0.82em;
+    line-height: 1.35;
+    color: var(--text-error);
+}
+
+.render-cache-error-help {
+    margin-top: 0.55em;
+    color: var(--text-muted);
+    font-size: 0.82em;
+}
+
+.render-cache-status-bar.has-error {
+    color: var(--text-error);
+}
+
+.render-cache-status-bar.is-rendering {
+    color: var(--text-accent);
+}
+
 /* Phase 9 — modals & status output. */
 
 .render-cache-btn-row {

@@ -39,6 +39,11 @@ export interface CacheStatus {
   rendererVersion?: string;
 }
 
+export interface NoteCacheStatus {
+  totalBlocks: number;
+  errorCount: number;
+}
+
 /** Aggregate counts/bytes/per-language from a parsed index.json.
  *  Pure: no I/O, no Obsidian deps. */
 export function aggregateStatus(index: IndexShape | null): CacheStatus {
@@ -87,6 +92,45 @@ export function aggregateStatus(index: IndexShape | null): CacheStatus {
     schemaVersion: index.schemaVersion,
     rendererVersion: index.rendererVersion,
   };
+}
+
+/** Aggregate cache state for a single note. Pure: no Obsidian deps. */
+export function aggregateNoteStatus(
+  index: IndexShape | null,
+  sourcePath: string | null,
+): NoteCacheStatus {
+  if (!index || !index.notes || !sourcePath) {
+    return { totalBlocks: 0, errorCount: 0 };
+  }
+  const note = index.notes[sourcePath];
+  if (!note) return { totalBlocks: 0, errorCount: 0 };
+
+  let totalBlocks = 0;
+  let errorCount = 0;
+  for (const block of note.blocks ?? []) {
+    totalBlocks += 1;
+    if (block.lastError) errorCount += 1;
+  }
+  return { totalBlocks, errorCount };
+}
+
+/** Text for the status-bar item (SPEC AC10.3). */
+export function statusBarText(
+  status: NoteCacheStatus,
+  isRendering: boolean,
+): string {
+  if (isRendering) {
+    return status.totalBlocks > 0
+      ? `rendering 1/${status.totalBlocks}…`
+      : "rendering…";
+  }
+  if (status.errorCount > 0) {
+    return `⚠ ${status.errorCount} failed`;
+  }
+  if (status.totalBlocks > 0) {
+    return `✓ ${status.totalBlocks} item${status.totalBlocks === 1 ? "" : "s"}`;
+  }
+  return "no cache";
 }
 
 /** Format bytes as a human-readable string (KiB/MiB). Pure. */
