@@ -3,10 +3,10 @@
 **Spec:** `/Users/cs/Obsidian/_/docs/specs/render-cache/SPEC.md`
 **Plan:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PLAN.md`
 **Archive:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PROGRESS_ARCHIVE.md` (Phase 1-6 + Initialization + diagnostic checkpoint)
-**Status:** Phase 9 (plugin commands & modes) agent-side complete — awaiting user gate (13-step procedure).
+**Status:** Phase 9 gate closed by obsidian-verify desktop automation; Phase 10 next.
 **Mode:** Manual (user-driven phase progression)
 **Started:** 2026-04-27
-**Last Updated:** 2026-04-28 (Phase 9 agent-side done; jest 73/73 + python 150/150 fast green)
+**Last Updated:** 2026-05-01 (Phase 9 gate closed; obsidian-verify desktop gate pass + jest 73/73 + python 169/169)
 
 > **Mode note:** PLAN.md L4 declares manual mode. SPEC §11.4 requires each
 > phase to end at a "Direct user feedback (gate)" before the next begins.
@@ -47,7 +47,7 @@
 | Phase 6 — Add RDKit adapter | DONE | 2026-04-27 14:48 | 2026-04-27 (gate closed this session) | dc78c598e (PROGRESS) + 927047133 (auto-backup) | 15/15 ✓ + 108/108 full suite | ~6m | New `SMILESAdapter` — **the only v1 adapter that is pure Python, no shell-out**. Uses `rdkit.Chem.MolFromSmiles` + `AllChem.Compute2DCoords` + `rdMolDraw2D.MolDraw2DSVG` (400×300). Pre-flight: `rdkit 2026.3.1` installed via `pip install rdkit` (user authorised; user asked "uv or pip?" — pip chosen for one-off conda-env install). REGISTRY/BLOCK_RE/`_FENCE_TO_LANG`/dispatcher fence-tag list extended (now 6 items). Sandbox `_RENDER_TEST_smiles.md` (3 SMILES blocks: caffeine / aspirin / ibuprofen). All three render correctly per AC6.2 (rsvg-convert verification at agent level — caffeine purine ring, aspirin acetyl ester + COOH, ibuprofen benzene + isobutyl + α-methyl propanoate). RDKit logger silenced at module import (D6.5) — clean CLI/test output. AC6.3: invalid SMILES → `RenderError` with offending input snippet. Fence-tag derive-from-REGISTRY refactor (D5.6 promise) deliberately deferred to follow-up commit (D6.7). |
 | Phase 7 — Apply SVG postprocessing hardening | DONE | 2026-04-27 15:10 | 2026-04-27 (gate closed this session) | 88a487fc9 (PROGRESS+residual) + a9cd7320c (auto-backup: code+tests+105 cache SVGs) + c25974eeb (D7.8/D7.9/D7.10 honest gate framing) | 43/43 Phase 7 ✓ + 151/151 full suite | ~30m | Three rules in `render_cache/postprocess.py` (`prefix_ids` / `substitute_current_color` / `enforce_viewbox`). Quote-agnostic regexes — PLAN's pseudocode pinned double-quote only and would have silently no-op'd on TikZ + SMILES (both single-quoted). Added CSS-style colour rule for SMILES (`style='...stroke:#000000...'`). Re-rendered 169 cache SVGs via `--all --force`; AC7.1/AC7.2/AC7.3 hard-verified across full cache (0 unprefixed dvisvgm or Graphviz IDs; 0 attribute-form OR CSS-style hardcoded black; 169/169 viewBox; 0/169 pt units). 3 pre-existing TikZ source bugs surfaced for the 3rd time (not Phase 7 regressions). Gate (AC7.4 visual-confirmed): "we see all the svgs in the _RENDER_TEST_d2.md note. We also see the codeblock still and the embedded internal links to the cached svgs". AC7.5 dark-mode follow remains structurally blocked under `<img>` viewing path (D7.8) — re-evaluated at Phase 8 user gate, which under SPEC `<img>` mandate will also remain blocked (Phase 8 user-confirmed via `<img>` per SPEC §3.4/§3.6). |
 | Phase 8 — Plugin scaffold | DONE | 2026-04-27 (this session) | 2026-04-27 (gate closed 2026-04-28) | d035c5cfd (auto-backup, atomic capture: .gitignore + plugin tree + PROGRESS + Python fixture self-test) + 5ec8cf62d (earlier auto-backup: generator script + initial fixture stray) + c070312ed (PROGRESS hash-record) + e101d1e81 (gate-language refinements) | jest 24/24 ✓ + python 150/150 fast ✓ | ~1.5h | New `obsidian-render-cache` plugin at `.obsidian/plugins/obsidian-render-cache/` (.ts source + main.js bundle + manifest + tests + fixtures). Cross-language hash byte-identity (T12) hard-verified: 14 fixtures × 2 languages = 28 round-trip checks passing. Production round-trip on all 3 `_RENDER_TEST_d2.md` blocks confirmed (computed hash == index.json sourceHash). User gate visual-confirmed all 8 verification steps (see Phase 8 Gate Closure inside log entry). MathJax font warnings during step 2 are unrelated (slow-network WOFF loading) and out of plugin scope. |
-| Phase 9 — Plugin commands and modes | DONE (agent) | 2026-04-28 | 2026-04-28 (agent-side) | TBD (this iteration) | jest 73/73 ✓ + python 150/150 fast ✓ | ~3h | 4 new src modules (settings/render/cacheStatus/commands; ~1000 lines) + 4 new test files (49 new pure-function tests). 7 commands registered (refresh-block / refresh-note / refresh-vault / show-status / sweep / toggle-mode / clear-all); 3 modes (hybrid / cache-only / live with mobile auto-override AC9.9); SettingTab w/ 5 controls; triggerOnSave save hook (3s debounced, desktop-only). main.js 4.5KB → 17.8KB minified. Manifest+package.json bumped 0.1.0 → 0.2.0. macOS Electron PATH issue defended via `useLoginShell` setting + `pythonPath` override (D9.3). User gate pending (10 ACs across 7 commands; 13-step verification procedure inline). |
+| Phase 9 — Plugin commands and modes | DONE — gate closed | 2026-04-28 | 2026-05-01 (obsidian-verify gate) | 8db247eec + gate log | jest 73/73 ✓ + python 169/169 ✓ + obsidian-verify gate ✓ | ~3h + gate | 4 new src modules (settings/render/cacheStatus/commands; ~1000 lines) + 4 new test files (49 new pure-function tests). 7 commands registered (refresh-block / refresh-note / refresh-vault / show-status / sweep / toggle-mode / clear-all); 3 modes (hybrid / cache-only / live with mobile auto-override AC9.9); SettingTab w/ 5 controls; triggerOnSave save hook (3s debounced, desktop-only). Gate closed via isolated obsidian-verify harness run: desktop plugin load/settings/commands/save/live/sweep/clear-all passed; iOS physical UI not automatable in desktop harness, mobile override covered by unit tests and remains in Phase 11 iOS validation. |
 | Phase 10 — Plugin error display + status bar | Not Started | | | | | | 2–3h est. Depends on Phase 9. |
 | Phase 11 — iOS validation (USER-DRIVEN) | Not Started | | | | | | User-driven. Requires phone + iCloud sync. Depends on Phase 10. |
 | Phase 12 — Migration tool: legacy → new layout | Not Started | | | | | | 2–3h est. Depends on Phase 7+. |
@@ -64,6 +64,76 @@
 ## Log
 
 _(Most recent first — reverse chronological)_
+
+### Phase 9 Gate Closure — obsidian-verify — 2026-05-01 DONE
+
+**Scope:** Verify Phase 9's 13-step user gate using the `obsidian-verify`
+skill and harness, without mutating the real vault cache.
+
+**Method:**
+
+- Created a temporary runner at `/tmp/render-cache-phase9-gate.mjs`.
+- Used the obsidian-verify harness modules (`isolateVault`, `launchElectron`,
+  `stabilize`, `captureConsole`, `waitUntilVaultStable`) against a throwaway
+  copy of `resources/tests/test-vault/`.
+- Copied the built `obsidian-render-cache` plugin into the temporary vault,
+  enabled it in that vault's `.obsidian/community-plugins.json`, and set
+  plugin data to use the conda Python path.
+- Copied the Python `render_cache` package into the temporary vault and
+  patched only that temporary copy's `cache_paths.py` so destructive paths
+  (`sweep`, `clear-all`) affected the temp cache, not the real vault.
+- Seeded a three-block D2 note, pre-rendered its cache, launched pinned
+  Obsidian via CDP, then drove the real command callbacks through Obsidian's
+  command registry and UI modals.
+
+**Gate result:**
+
+- PASS — plugin loaded cleanly; console log captured:
+  `obsidian-render-cache: loaded; processors registered for tikz, graphviz,
+  d2, lilypond, smiles; mode=hybrid; triggerOnSave=true`.
+- PASS — settings tab rendered the expected controls: mode, Python path,
+  script path, re-render-on-save, login-shell toggle.
+- PASS — `Refresh all blocks in this note` spawned Python and completed.
+- PASS — `Refresh this block` updated the targeted D2 cache file.
+- PASS — `Show cache status` opened the status modal with D2 cache data.
+- PASS — `Toggle render mode` cycled `cache-only -> live -> hybrid`.
+- PASS — `Sweep orphan cache files` removed only a canonical fake orphan and
+  preserved a real cache file.
+- PASS — `triggerOnSave` persisted an editor edit through `editor:save-file`
+  and produced a new D2 cache hash.
+- PASS — live mode re-rendered on preview load.
+- SKIP (desktop-harness limitation) — physical iOS UI cannot be exercised by
+  pinned desktop Obsidian. AC9.9's mobile branch is covered by
+  `settings.test.ts` (`effectiveMode`, mobile miss text, non-clickability).
+  Real mobile validation remains Phase 11.
+- PASS — `Refresh entire vault` showed the confirmation modal and streamed to
+  a progress modal ending in `Done.`
+- PASS — `Clear entire cache (DESTRUCTIVE)` deleted SVGs only inside the
+  isolated temporary vault.
+- PASS — final console check: zero render-cache errors and zero warnings.
+
+**Artifacts:**
+
+- JSON report:
+  `/tmp/render-cache-phase9-gate-2026-05-01T18-36-25-336Z.json`
+- Temporary runner:
+  `/tmp/render-cache-phase9-gate.mjs`
+
+**Additional verification after gate:**
+
+- `npm test -- --runInBand` in `.obsidian/plugins/obsidian-render-cache`:
+  73/73 Jest tests pass.
+- `python3 -m pytest resources/scripts/python_single/tests -q`:
+  169/169 Python tests pass.
+- `node --import tsx run.ts --canary` in `resources/tests/harness`:
+  PASS canary, 3/3 assertions, 0 console errors, 0 warnings.
+
+**Decision (D9.12):** Treat Phase 9 gate as closed for desktop command
+coverage. Do not pretend the desktop harness performed a physical iOS test;
+the mobile override is unit-verified here and remains part of the dedicated
+Phase 11 iOS validation gate.
+
+**Next:** Phase 10 — Plugin error display + status bar.
 
 ### Phase 9 — Plugin commands and modes — 2026-04-28 DONE (agent-side)
 
