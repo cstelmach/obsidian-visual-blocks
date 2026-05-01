@@ -3,10 +3,10 @@
 **Spec:** `/Users/cs/Obsidian/_/docs/specs/render-cache/SPEC.md`
 **Plan:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PLAN.md`
 **Archive:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PROGRESS_ARCHIVE.md` (Phase 1-6 + Initialization + diagnostic checkpoint)
-**Status:** Phase 10 in progress — plugin error display + status bar.
+**Status:** Phase 10 gate closed by obsidian-verify desktop automation; Phase 11 next.
 **Mode:** Manual (user-driven phase progression)
 **Started:** 2026-04-27
-**Last Updated:** 2026-05-01 (Phase 10 in progress)
+**Last Updated:** 2026-05-01 (Phase 10 gate closed; jest 79/79 + python 170/170 + obsidian-verify pass)
 
 > **Mode note:** PLAN.md L4 declares manual mode. SPEC §11.4 requires each
 > phase to end at a "Direct user feedback (gate)" before the next begins.
@@ -48,7 +48,7 @@
 | Phase 7 — Apply SVG postprocessing hardening | DONE | 2026-04-27 15:10 | 2026-04-27 (gate closed this session) | 88a487fc9 (PROGRESS+residual) + a9cd7320c (auto-backup: code+tests+105 cache SVGs) + c25974eeb (D7.8/D7.9/D7.10 honest gate framing) | 43/43 Phase 7 ✓ + 151/151 full suite | ~30m | Three rules in `render_cache/postprocess.py` (`prefix_ids` / `substitute_current_color` / `enforce_viewbox`). Quote-agnostic regexes — PLAN's pseudocode pinned double-quote only and would have silently no-op'd on TikZ + SMILES (both single-quoted). Added CSS-style colour rule for SMILES (`style='...stroke:#000000...'`). Re-rendered 169 cache SVGs via `--all --force`; AC7.1/AC7.2/AC7.3 hard-verified across full cache (0 unprefixed dvisvgm or Graphviz IDs; 0 attribute-form OR CSS-style hardcoded black; 169/169 viewBox; 0/169 pt units). 3 pre-existing TikZ source bugs surfaced for the 3rd time (not Phase 7 regressions). Gate (AC7.4 visual-confirmed): "we see all the svgs in the _RENDER_TEST_d2.md note. We also see the codeblock still and the embedded internal links to the cached svgs". AC7.5 dark-mode follow remains structurally blocked under `<img>` viewing path (D7.8) — re-evaluated at Phase 8 user gate, which under SPEC `<img>` mandate will also remain blocked (Phase 8 user-confirmed via `<img>` per SPEC §3.4/§3.6). |
 | Phase 8 — Plugin scaffold | DONE | 2026-04-27 (this session) | 2026-04-27 (gate closed 2026-04-28) | d035c5cfd (auto-backup, atomic capture: .gitignore + plugin tree + PROGRESS + Python fixture self-test) + 5ec8cf62d (earlier auto-backup: generator script + initial fixture stray) + c070312ed (PROGRESS hash-record) + e101d1e81 (gate-language refinements) | jest 24/24 ✓ + python 150/150 fast ✓ | ~1.5h | New `obsidian-render-cache` plugin at `.obsidian/plugins/obsidian-render-cache/` (.ts source + main.js bundle + manifest + tests + fixtures). Cross-language hash byte-identity (T12) hard-verified: 14 fixtures × 2 languages = 28 round-trip checks passing. Production round-trip on all 3 `_RENDER_TEST_d2.md` blocks confirmed (computed hash == index.json sourceHash). User gate visual-confirmed all 8 verification steps (see Phase 8 Gate Closure inside log entry). MathJax font warnings during step 2 are unrelated (slow-network WOFF loading) and out of plugin scope. |
 | Phase 9 — Plugin commands and modes | DONE — gate closed | 2026-04-28 | 2026-05-01 (obsidian-verify gate) | 8db247eec + gate log | jest 73/73 ✓ + python 169/169 ✓ + obsidian-verify gate ✓ | ~3h + gate | 4 new src modules (settings/render/cacheStatus/commands; ~1000 lines) + 4 new test files (49 new pure-function tests). 7 commands registered (refresh-block / refresh-note / refresh-vault / show-status / sweep / toggle-mode / clear-all); 3 modes (hybrid / cache-only / live with mobile auto-override AC9.9); SettingTab w/ 5 controls; triggerOnSave save hook (3s debounced, desktop-only). Gate closed via isolated obsidian-verify harness run: desktop plugin load/settings/commands/save/live/sweep/clear-all passed; iOS physical UI not automatable in desktop harness, mobile override covered by unit tests and remains in Phase 11 iOS validation. |
-| Phase 10 — Plugin error display + status bar | In Progress | 2026-05-01 | | | | | 2–3h est. Depends on Phase 9. |
+| Phase 10 — Plugin error display + status bar | DONE — gate closed | 2026-05-01 | 2026-05-01 (obsidian-verify gate) | cfe598614 + Phase 10 log | jest 79/79 ✓ + python 170/170 ✓ + obsidian-verify gate ✓ | ~2h | Python now preserves failed block entries in `index.json` with `lastError`; plugin shows retryable inline error blocks before image/placeholder handling; status bar shows per-note idle/rendering/error state and opens the Phase 9 cache-status modal. Gate closed via isolated obsidian-verify harness: valid note cached image + `✓ 1 item`; broken TikZ note inline LaTeX error + `⚠ 1 failed`; error click retries; status-bar click opens modal; 0 render-cache console errors/warnings. |
 | Phase 11 — iOS validation (USER-DRIVEN) | Not Started | | | | | | User-driven. Requires phone + iCloud sync. Depends on Phase 10. |
 | Phase 12 — Migration tool: legacy → new layout | Not Started | | | | | | 2–3h est. Depends on Phase 7+. |
 | Phase 13 — Documentation | Not Started | | | | | | 2–3h est. Final phase before optional 14. |
@@ -64,6 +64,107 @@
 ## Log
 
 _(Most recent first — reverse chronological)_
+
+### Phase 10 — Plugin error display + status bar — 2026-05-01 DONE
+
+**Scope:** Implement SPEC AC10.1-AC10.4: failed render visibility,
+retryable inline error blocks, and a status-bar item for per-note cache state.
+
+**Completed:**
+
+- Python dispatcher now preserves failed blocks in `index.json` instead of
+  dropping them from the note entry. Failed block metadata includes
+  `blockIdx`, `language`, `sourceHash`, expected `cachePath`, `outputBytes`,
+  `renderedAt: null`, and `lastError`.
+- Plugin display path now checks `entry.lastError` before checking the SVG
+  file. Error entries render an inline error block with the captured renderer
+  message rather than a cache-miss placeholder or stale image.
+- Desktop inline error blocks are clickable. Retry runs
+  `render_cache.py FILE.md --force`, reloads the index, and keeps the error
+  visible if the retry still fails.
+- Added status-bar item:
+  - idle: `✓ N item(s)`
+  - rendering: `rendering 1/N...` or `rendering...`
+  - error: `⚠ N failed`
+- Status-bar click opens the existing Phase 9 `CacheStatusModal`.
+- Render-state updates are wired into refresh-block, refresh-note,
+  refresh-vault, live mode, and trigger-on-save.
+- Plugin version bumped `0.2.0 -> 0.3.0`.
+
+**Tests and verification:**
+
+- TDD red phase observed:
+  - Python failed-render test initially failed because failed blocks were
+    omitted from `index.json`.
+  - Jest status tests initially failed because `aggregateNoteStatus` and
+    `statusBarText` did not exist.
+- `npm test -- --runInBand` in `.obsidian/plugins/obsidian-render-cache`:
+  79/79 Jest tests pass.
+- `npm run build` in `.obsidian/plugins/obsidian-render-cache`: production
+  bundle succeeds.
+- `python3 -m pytest resources/scripts/python_single/tests -q`:
+  170/170 Python tests pass.
+- Isolated obsidian-verify harness runner:
+  `/tmp/render-cache-phase10-gate.mjs`
+  - PASS: seed temp vault with one valid D2 cache and one broken TikZ
+    `lastError` entry.
+  - PASS: plugin loads in pinned desktop Obsidian.
+  - PASS: valid note shows cached SVG and status bar `✓ 1 item`.
+  - PASS: broken TikZ note shows inline LaTeX error and status bar
+    `⚠ 1 failed`.
+  - PASS: inline error click retries render and preserves the visible error.
+  - PASS: status-bar click opens cache-status modal with error summary.
+  - PASS: final render-cache console check: 0 errors, 0 warnings.
+- JSON report:
+  `/tmp/render-cache-phase10-gate-2026-05-01T20-43-02-645Z.json`
+- `node --import tsx run.ts --canary` in `resources/tests/harness`:
+  PASS canary, 3/3 assertions, 0 console errors, 0 warnings.
+
+**Decisions (D10.x):**
+
+- **D10.1 — Record failures as first-class block entries.** AC10.1 cannot
+  work if a failed block disappears from `index.json`. The dispatcher now
+  records errored block metadata with `lastError` and no markdown wikilink
+  insertion.
+- **D10.2 — `lastError` beats stale SVG display.** If an entry has
+  `lastError`, the plugin shows the inline error block before checking whether
+  `cachePath` exists. This avoids silently showing stale images after a forced
+  retry fails.
+- **D10.3 — Error retry uses `--force`.** A retry should exercise the failed
+  source even if an old SVG still exists at the expected path.
+- **D10.4 — Status bar is per active note, not vault-wide.** The modal remains
+  vault-wide aggregate status; the status-bar item answers "what is the state
+  of the note I am looking at?"
+- **D10.5 — No history rewrite after auto-backup.** The vault auto-backup
+  captured implementation files as `cfe598614` while verification was running,
+  along with unrelated journal/archive edits. I did not rewrite history or
+  touch unrelated files. I restored two verification-induced cache artifacts
+  in the Phase 10 log commit.
+- **D10.6 — D6.7 fence-tag derive-from-REGISTRY refactor remains deferred.**
+  Phase 10 already touched Python for error metadata and TypeScript for UI
+  behavior. The fence-tag cleanup is unrelated to AC10.1-AC10.4 and remains
+  a small follow-up, not a Phase 10 blocker.
+
+**Deviations / caveats:**
+
+- PLAN §Phase 10 is a two-sentence delegation. The implementation shape
+  (`cacheStatus` pure helpers + main plugin integration + command render-state
+  callbacks) is agent-chosen and tied directly to AC10.1-AC10.4.
+- The isolated desktop harness cannot become physical iOS. Phase 10 retry is
+  intentionally desktop-only because mobile cannot spawn Python; Phase 11 is
+  still the dedicated iOS validation gate.
+
+**Divergence Check — Phase 10**
+
+- [x] Files modified vs plan: PLAN named no explicit files; actual scope was
+  plugin source/build/tests/styles + Python dispatcher/test + PROGRESS.
+- [x] Max complexity: reasonable; no new renderer algorithm, only metadata
+  recording and UI state wiring.
+- [x] All changes link to AC10.1-AC10.4.
+- [x] No repeated identical tool calls (>3) after failures; harness failure
+  was debugged by adding DOM diagnostics, then tightening selector/click logic.
+
+**Next:** Phase 11 — iOS validation (USER-DRIVEN).
 
 ### Phase 9 Gate Closure — obsidian-verify — 2026-05-01 DONE
 
