@@ -3,10 +3,10 @@
 **Spec:** `/Users/cs/Obsidian/_/docs/specs/render-cache/SPEC.md`
 **Plan:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PLAN.md`
 **Archive:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PROGRESS_ARCHIVE.md` (Phase 1-6 + Initialization + diagnostic checkpoint)
-**Status:** Phase 10 gate closed by obsidian-verify desktop automation; Phase 11 next.
+**Status:** Phase 11 iOS validation in progress; local cache/plugin preflight passed; user phone gate pending.
 **Mode:** Manual (user-driven phase progression)
 **Started:** 2026-04-27
-**Last Updated:** 2026-05-01 (Phase 10 gate closed; jest 79/79 + python 170/170 + obsidian-verify pass)
+**Last Updated:** 2026-05-02 (Phase 11 local preflight passed; iOS phone gate pending)
 
 > **Mode note:** PLAN.md L4 declares manual mode. SPEC §11.4 requires each
 > phase to end at a "Direct user feedback (gate)" before the next begins.
@@ -49,7 +49,7 @@
 | Phase 8 — Plugin scaffold | DONE | 2026-04-27 (this session) | 2026-04-27 (gate closed 2026-04-28) | d035c5cfd (auto-backup, atomic capture: .gitignore + plugin tree + PROGRESS + Python fixture self-test) + 5ec8cf62d (earlier auto-backup: generator script + initial fixture stray) + c070312ed (PROGRESS hash-record) + e101d1e81 (gate-language refinements) | jest 24/24 ✓ + python 150/150 fast ✓ | ~1.5h | New `obsidian-render-cache` plugin at `.obsidian/plugins/obsidian-render-cache/` (.ts source + main.js bundle + manifest + tests + fixtures). Cross-language hash byte-identity (T12) hard-verified: 14 fixtures × 2 languages = 28 round-trip checks passing. Production round-trip on all 3 `_RENDER_TEST_d2.md` blocks confirmed (computed hash == index.json sourceHash). User gate visual-confirmed all 8 verification steps (see Phase 8 Gate Closure inside log entry). MathJax font warnings during step 2 are unrelated (slow-network WOFF loading) and out of plugin scope. |
 | Phase 9 — Plugin commands and modes | DONE — gate closed | 2026-04-28 | 2026-05-01 (obsidian-verify gate) | 8db247eec + gate log | jest 73/73 ✓ + python 169/169 ✓ + obsidian-verify gate ✓ | ~3h + gate | 4 new src modules (settings/render/cacheStatus/commands; ~1000 lines) + 4 new test files (49 new pure-function tests). 7 commands registered (refresh-block / refresh-note / refresh-vault / show-status / sweep / toggle-mode / clear-all); 3 modes (hybrid / cache-only / live with mobile auto-override AC9.9); SettingTab w/ 5 controls; triggerOnSave save hook (3s debounced, desktop-only). Gate closed via isolated obsidian-verify harness run: desktop plugin load/settings/commands/save/live/sweep/clear-all passed; iOS physical UI not automatable in desktop harness, mobile override covered by unit tests and remains in Phase 11 iOS validation. |
 | Phase 10 — Plugin error display + status bar | DONE — gate closed | 2026-05-01 | 2026-05-01 (obsidian-verify gate) | cfe598614 + Phase 10 log | jest 79/79 ✓ + python 170/170 ✓ + obsidian-verify gate ✓ | ~2h | Python now preserves failed block entries in `index.json` with `lastError`; plugin shows retryable inline error blocks before image/placeholder handling; status bar shows per-note idle/rendering/error state and opens the Phase 9 cache-status modal. Gate closed via isolated obsidian-verify harness: valid note cached image + `✓ 1 item`; broken TikZ note inline LaTeX error + `⚠ 1 failed`; error click retries; status-bar click opens modal; 0 render-cache console errors/warnings. |
-| Phase 11 — iOS validation (USER-DRIVEN) | Not Started | | | | | | User-driven. Requires phone + iCloud sync. Depends on Phase 10. |
+| Phase 11 — iOS validation (USER-DRIVEN) | In Progress — user gate pending | 2026-05-02 07:38 | | 81ce0fe07 (preflight) | local preflight ✓; phone gate pending | | User-driven. Requires phone + iCloud sync. Depends on Phase 10. |
 | Phase 12 — Migration tool: legacy → new layout | Not Started | | | | | | 2–3h est. Depends on Phase 7+. |
 | Phase 13 — Documentation | Not Started | | | | | | 2–3h est. Final phase before optional 14. |
 | Phase 14 — gboyd068/SwiftLaTeX hands-on eval | Not Started (optional) | | | | | | OPTIONAL. Skip unless v1 has gaps surfaced during Phase 11. |
@@ -64,6 +64,94 @@
 ## Log
 
 _(Most recent first — reverse chronological)_
+
+### Phase 11 — iOS validation — 2026-05-02 IN PROGRESS
+
+**Scope:** Validate SPEC AC11.1-AC11.4 on physical iOS Obsidian. This phase is
+owned by the user because the desktop harness cannot exercise iOS WebKit,
+mobile plugin loading, iCloud/Obsidian Sync behavior, or the prior crash mode.
+
+**Agent-side local preflight completed:**
+
+- Plugin exists at `.obsidian/plugins/obsidian-render-cache/` with
+  `manifest.json` version `0.3.0` and `"isDesktopOnly": false`.
+- `.obsidian/community-plugins.json` includes `obsidian-render-cache`, so the
+  plugin is locally enabled and should be available to sync to mobile.
+- `attachments/cache/tikz/index.json` exists with `schemaVersion: 1`, 106 note
+  entries, and adapter preamble hashes for TikZ, Graphviz, D2, LilyPond, and
+  SMILES.
+- Dry-run cache checks all hit for the five Phase 11 representative notes:
+  - `kn/math/concepts/mSB5-2_partial.md`: 1 TikZ block, cache hit
+  - `kn/math/concepts/_TIKZ_TEST_mSB5-2.md`: 5 TikZ blocks, all cache hits
+  - `kn/math/concepts/mSB3-4_reals.md`: 1 TikZ block, cache hit
+  - `kn/math/concepts/mSB3-5_complex.md`: 1 TikZ block, cache hit
+  - `kn/math/concepts/mLA5-1_eigenvalues.md`: 2 TikZ blocks, both cache hits
+- Target SVG integrity check: all 10 target SVGs exist, have `viewBox`, have no
+  `file://` references, have no `pt` width/height, and have no `lastError`.
+
+**Verification run before user gate:**
+
+- `.obsidian/plugins/obsidian-render-cache`: `npm test -- --runInBand` →
+  79/79 Jest tests pass.
+- `.obsidian/plugins/obsidian-render-cache`: `npm run build` → production
+  bundle succeeds.
+- `/opt/homebrew/Caskroom/miniconda/base/bin/python -m pytest
+  resources/scripts/python_single/tests -q` → 170/170 Python tests pass.
+
+**Observation — not blocking Phase 11:**
+
+- The shell's default `python3` is Homebrew Python 3.14 and lacks `rdkit` and
+  `pytest`; the conda Python at `/opt/homebrew/Caskroom/miniconda/base/bin/python`
+  is the verified interpreter. Phase 11 is mobile cache-only and does not spawn
+  Python, so this does not block iOS validation. Before testing desktop
+  trigger-on-save or SMILES rendering in the real vault, set Render Cache's
+  Python path setting to the conda interpreter if it is not already saved in
+  Obsidian's plugin data.
+- During preflight, `attachments/cache/tikz/index.json` and
+  `mSB3-4_reals__1__814d986af7c9302c.svg` briefly changed even though the
+  intended checks were read-only. The diff was cache churn only
+  (`renderedAt` timestamp plus reordered SVG `<defs>`); both files were
+  restored before commit. Treat this as a future dry-run/live-render anomaly
+  to investigate if it recurs.
+
+**User phone gate — required results for AC11.1-AC11.4:**
+
+1. On iOS, let the vault finish syncing. Confirm
+   `.obsidian/plugins/obsidian-render-cache/` is present by checking that
+   Settings → Community plugins shows "Render Cache".
+2. Enable "Render Cache" on iOS if it is not already enabled.
+3. Open `kn/math/concepts/mSB5-2_partial.md`.
+   - Expected: loads cleanly, no crash, no reload loop, page interactive within
+     about 2 seconds, partial-derivative surface SVG visible.
+4. Open `kn/math/concepts/_TIKZ_TEST_mSB5-2.md`.
+   - Expected: loads cleanly, no crash, no reload loop, all five cached TikZ
+     diagrams visible.
+5. Open at least three representative files total from this set:
+   - `kn/math/concepts/mSB5-2_partial.md`
+   - `kn/math/concepts/_TIKZ_TEST_mSB5-2.md`
+   - `kn/math/concepts/mSB3-4_reals.md`
+   - `kn/math/concepts/mSB3-5_complex.md`
+   - `kn/math/concepts/mLA5-1_eigenvalues.md`
+6. For each file, report one result:
+   - `A`: clean load, all diagrams visible, correct
+   - `B`: partial load, some diagrams missing, duplicated, or visually wrong
+   - `C`: crash, reload loop, or app becomes unusable
+7. For any `B` or `C`, include the file name, which diagram/block failed if
+   visible, and whether the status bar showed `✓`, `⚠`, or a cache-miss/error
+   placeholder.
+
+**Divergence Check — Phase 11 preflight**
+
+- [x] Files modified vs plan: only `PROGRESS.md` (phase is user-owned; no code
+  changes expected before phone validation).
+- [x] Max complexity: no implementation changes.
+- [x] All work links to SPEC AC11.1-AC11.4 and PLAN Tasks 11.1-11.3.
+- [x] No destructive cache operations; unintended cache churn was inspected and
+  restored; only `PROGRESS.md` remains modified.
+
+**Next:** User reports the iOS gate results. If all required files are `A`,
+Phase 11 can be closed and Phase 12 begins. If any result is `B` or `C`, run
+Phase 11.4 sync/storage triage before proceeding.
 
 ### Phase 10 — Plugin error display + status bar — 2026-05-01 DONE
 
