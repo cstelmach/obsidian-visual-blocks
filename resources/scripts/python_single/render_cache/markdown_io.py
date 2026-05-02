@@ -8,10 +8,9 @@ Both ``tikz`` and ``tikz-paused`` are matched and BOTH normalise to
 ``language="tikz"`` for hash purposes — pausing or unpausing a block is a
 display-only change and must not invalidate the cache.
 
-The image alt-tag ``tikz-cache`` is preserved for backward compatibility with
-``.obsidian/snippets/tikz-cache.css`` — used for ALL adapters in v1, including
-graphviz/d2/etc. SPEC OQ9 tracks the eventual rename to ``render-cache``,
-deferred to Phase 12 migration.
+Phase 12 writes image refs as ``![[...|render-cache]]``. The matcher still
+accepts the legacy ``tikz-cache`` alt tag so old refs are rewritten in place
+rather than duplicated.
 """
 from __future__ import annotations
 
@@ -29,11 +28,12 @@ BLOCK_RE = re.compile(
     re.DOTALL | re.MULTILINE,
 )
 
-# Match an immediately-following ``![[FILENAME|tikz-cache]]`` reference. Both
-# ``.png`` (legacy Phase 0/1) and ``.svg`` (Phase 1+) are accepted so refs
-# get rewritten in place rather than duplicated.
+# Match an immediately-following cache image reference. Both ``.png`` (legacy
+# Phase 0/1) and ``.svg`` (Phase 1+) are accepted so refs get rewritten in
+# place rather than duplicated. Alt accepts legacy ``tikz-cache`` and canonical
+# Phase 12 ``render-cache``.
 CACHE_REF_RE = re.compile(
-    r"\n+!\[\[([^\]|\n]+\.(?:png|svg))\|tikz-cache\]\]"
+    r"\n+!\[\[([^\]|\n]+\.(?:png|svg))\|(?:tikz-cache|render-cache)\]\]"
 )
 
 # Map raw fence tags to canonical hashing language.
@@ -85,7 +85,7 @@ def find_blocks(content: str) -> list[CodeBlock]:
 def find_existing_ref(
     content: str, after_pos: int
 ) -> tuple[re.Match[str] | None, int, int]:
-    """Find a ``![[…|tikz-cache]]`` reference immediately following ``after_pos``.
+    """Find a cache image reference immediately following ``after_pos``.
 
     Allows only blank lines between the block end and the reference. Returns
     ``(match, abs_start, abs_end)`` where positions are absolute in

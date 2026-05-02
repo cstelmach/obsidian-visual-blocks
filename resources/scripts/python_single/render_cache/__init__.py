@@ -30,8 +30,9 @@ from render_cache.cache_paths import (
     CACHE_DIR,
     INDEX_PATH,
     VAULT_ROOT,
+    CACHE_ROOT,
     cache_filename,
-    cache_path_for,
+    cache_path_for_note,
 )
 from render_cache.hash import compute_key, preamble_digest
 from render_cache.index import RENDERER_VERSION, load_index, save_index
@@ -80,10 +81,11 @@ def process_file(md_path: Path, force: bool, dry_run: bool) -> int:
     failed = 0
     new_blocks_meta: list[dict] = []
 
-    for idx, block in enumerate(blocks, 1):
+    for block_idx, block in enumerate(blocks):
+        display_idx = block_idx + 1
         adapter = REGISTRY.get(block.language)
         if adapter is None:
-            print(f"   [{idx}] {block.language}: no adapter — skipped")
+            print(f"   [{display_idx}] {block.language}: no adapter — skipped")
             failed += 1
             continue
 
@@ -95,20 +97,20 @@ def process_file(md_path: Path, force: bool, dry_run: bool) -> int:
             )
 
         key = compute_key(block.source, block.language, attrs, preamble_h)
-        svg_name = cache_filename(md_path.stem, idx, key)
-        svg_path = cache_path_for(md_path.stem, idx, key)
-        in_use_filenames.add(svg_name)
+        svg_name = cache_filename(block_idx, key)
+        svg_path = cache_path_for_note(md_path, block_idx, key)
+        in_use_filenames.add(svg_path.name)
 
         rendered = False
         ok = True
         last_error: str | None = None
         if force or not svg_path.exists():
-            print(f"   [{idx}] {block.language} key={key} → render")
+            print(f"   [{display_idx}] {block.language} key={key} → render")
             if dry_run:
                 print(f"        (dry-run) would render to {svg_path}")
                 ok = svg_path.exists()
             else:
-                workdir = CACHE_DIR / f"_work_{md_path.stem}_{idx}"
+                workdir = CACHE_ROOT / f"_work_{md_path.stem}_{display_idx}"
                 workdir.mkdir(parents=True, exist_ok=True)
                 try:
                     out_svg = adapter.render(block.source, attrs, workdir)
@@ -125,11 +127,11 @@ def process_file(md_path: Path, force: bool, dry_run: bool) -> int:
                 finally:
                     shutil.rmtree(workdir, ignore_errors=True)
         else:
-            print(f"   [{idx}] {block.language} key={key} → cache hit")
+            print(f"   [{display_idx}] {block.language} key={key} → cache hit")
 
         new_blocks_meta.append(
             {
-                "blockIdx": idx - 1,  # SPEC §3.4 uses 0-based block index
+                "blockIdx": block_idx,
                 "language": block.language,
                 "sourceHash": key,
                 "cachePath": _vault_relative(svg_path),
@@ -144,11 +146,12 @@ def process_file(md_path: Path, force: bool, dry_run: bool) -> int:
 
         if ok:
             block_end = block.span[1]
-            new_ref = f"\n\n![[{svg_name}|tikz-cache]]"
+            new_ref_path = _vault_relative(svg_path)
+            new_ref = f"\n\n![[{new_ref_path}|render-cache]]"
             existing, ref_start, ref_end = find_existing_ref(content, block_end)
             if existing is None:
                 edits.append((block_end, block_end, new_ref))
-            elif existing.group(1) != svg_name:
+            elif existing.group(1) != new_ref_path:
                 edits.append((ref_start, ref_end, new_ref))
 
     new_content = content
@@ -157,7 +160,7 @@ def process_file(md_path: Path, force: bool, dry_run: bool) -> int:
 
     # Cleanup orphaned SVGs for this note (different key, same stem+idx slot).
     if not dry_run:
-        for old_svg in CACHE_DIR.glob(f"{md_path.stem}__*.svg"):
+        for old_svg in svg_path.parent.glob("*.svg") if blocks else []:
             if old_svg.name not in in_use_filenames:
                 print(f"   [-] orphan: {old_svg.name}")
                 old_svg.unlink()
@@ -183,51 +186,30 @@ def sweep_orphans(dry_run: bool) -> int:
         print("(cache dir doesn't exist yet)")
         return 0
 
-    cache_files = list(CACHE_DIR.glob("*.svg"))
+    cache_files = list(CACHE_DIR.rglob("*.svg"))
     if not cache_files:
         print("(no cache files found)")
         return 0
 
-    md_by_stem: dict[str, Path] = {}
+    expected_paths: set[Path] = set()
     for root in SCAN_ROOTS:
         for md in root.rglob("*.md"):
-            md_by_stem.setdefault(md.stem, md)
-
-    import re as _re
-
-    name_re = _re.compile(r"^(.+)__(\d+)__([0-9a-f]{8,})\.svg$")
-    source_keys: dict[str, set[tuple[int, str]]] = {}
-
-    deleted = 0
-    for svg in cache_files:
-        m = name_re.match(svg.name)
-        if not m:
-            print(f"   [?] unparseable cache name, leaving: {svg.name}")
-            continue
-        stem, idx_s, key = m.group(1), int(m.group(2)), m.group(3)
-
-        md = md_by_stem.get(stem)
-        if md is None:
-            print(f"   [-] no source for {svg.name}")
-            if not dry_run:
-                svg.unlink()
-            deleted += 1
-            continue
-
-        if stem not in source_keys:
-            blocks = find_blocks(md.read_text(encoding="utf-8"))
-            keys: set[tuple[int, str]] = set()
-            for i, b in enumerate(blocks, 1):
+            try:
+                blocks = find_blocks(md.read_text(encoding="utf-8"))
+            except (UnicodeDecodeError, OSError):
+                continue
+            for block_idx, b in enumerate(blocks):
                 adapter = REGISTRY.get(b.language)
                 if adapter is None:
                     continue
                 ph = preamble_digest(adapter.preamble_text)
                 k = compute_key(b.source, b.language, {}, ph)
-                keys.add((i, k))
-            source_keys[stem] = keys
+                expected_paths.add(cache_path_for_note(md, block_idx, k))
 
-        if (idx_s, key) not in source_keys[stem]:
-            print(f"   [-] stale: {svg.name}")
+    deleted = 0
+    for svg in cache_files:
+        if svg not in expected_paths:
+            print(f"   [-] stale: {_vault_relative(svg)}")
             if not dry_run:
                 svg.unlink()
             deleted += 1
