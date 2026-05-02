@@ -141,6 +141,41 @@ def test_real_run_moves_svg_updates_index_and_markdown(tmp_path: Path) -> None:
     assert not legacy_dir.exists()
 
 
+def test_real_run_replaces_existing_destination_svg(tmp_path: Path) -> None:
+    from migrate_to_render_cache import build_plan, execute_plan
+
+    vault = tmp_path / "vault"
+    note_rel = "kn/math/concepts/mSB3-4_reals.md"
+    note = vault / note_rel
+    legacy_dir = vault / "attachments/cache/tikz"
+    legacy_ref = "attachments/cache/tikz/mSB3-4_reals__1__814d986af7c9302c.svg"
+    legacy_svg = vault / legacy_ref
+    key = "814d986af7c9302c"
+    new_rel = (
+        ".obsidian/plugins/visual-blocks/cache/v1/"
+        "kn/math/concepts/mSB3-4_reals/0__814d986af7c9302c.svg"
+    )
+    existing_dest = vault / new_rel
+
+    note.parent.mkdir(parents=True, exist_ok=True)
+    note.write_text(
+        "```tikz\n\\draw (0,0)--(1,1);\n```\n\n"
+        "![[mSB3-4_reals__1__814d986af7c9302c.svg|tikz-cache]]\n",
+        encoding="utf-8",
+    )
+    legacy_dir.mkdir(parents=True, exist_ok=True)
+    legacy_svg.write_text("<svg id='legacy'></svg>", encoding="utf-8")
+    existing_dest.parent.mkdir(parents=True, exist_ok=True)
+    existing_dest.write_text("<svg id='stale-dest'></svg>", encoding="utf-8")
+    write_index(legacy_dir / "index.json", note_rel, legacy_ref, key)
+
+    summary = execute_plan(build_plan(vault), dry_run=False)
+
+    assert summary.moved_svgs == 1
+    assert not legacy_svg.exists()
+    assert existing_dest.read_text(encoding="utf-8") == "<svg id='legacy'></svg>"
+
+
 def test_absolute_temp_vault_index_entries_are_dropped(tmp_path: Path) -> None:
     from migrate_to_render_cache import build_plan, execute_plan
 

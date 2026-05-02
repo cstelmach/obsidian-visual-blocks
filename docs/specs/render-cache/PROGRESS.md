@@ -3,10 +3,10 @@
 **Spec:** `/Users/cs/Obsidian/_/docs/specs/render-cache/SPEC.md`
 **Plan:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PLAN.md`
 **Archive:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PROGRESS_ARCHIVE.md` (Phase 1-6 + Initialization + diagnostic checkpoint)
-**Status:** Phase 12 migration tool in progress.
+**Status:** Phase 12 migration tool in progress; Visual Blocks rename prep complete.
 **Mode:** Manual (user-driven phase progression)
 **Started:** 2026-04-27
-**Last Updated:** 2026-05-02 (Phase 12 migration tool started)
+**Last Updated:** 2026-05-02 (Phase 12 rename prep before real migration)
 
 > **Mode note:** PLAN.md L4 declares manual mode. SPEC §11.4 requires each
 > phase to end at a "Direct user feedback (gate)" before the next begins.
@@ -50,7 +50,7 @@
 | Phase 9 — Plugin commands and modes | DONE — gate closed | 2026-04-28 | 2026-05-01 (obsidian-verify gate) | 8db247eec + gate log | jest 73/73 ✓ + python 169/169 ✓ + obsidian-verify gate ✓ | ~3h + gate | 4 new src modules (settings/render/cacheStatus/commands; ~1000 lines) + 4 new test files (49 new pure-function tests). 7 commands registered (refresh-block / refresh-note / refresh-vault / show-status / sweep / toggle-mode / clear-all); 3 modes (hybrid / cache-only / live with mobile auto-override AC9.9); SettingTab w/ 5 controls; triggerOnSave save hook (3s debounced, desktop-only). Gate closed via isolated obsidian-verify harness run: desktop plugin load/settings/commands/save/live/sweep/clear-all passed; iOS physical UI not automatable in desktop harness, mobile override covered by unit tests and remains in Phase 11 iOS validation. |
 | Phase 10 — Plugin error display + status bar | DONE — gate closed | 2026-05-01 | 2026-05-01 (obsidian-verify gate) | cfe598614 + Phase 10 log | jest 79/79 ✓ + python 170/170 ✓ + obsidian-verify gate ✓ | ~2h | Python now preserves failed block entries in `index.json` with `lastError`; plugin shows retryable inline error blocks before image/placeholder handling; status bar shows per-note idle/rendering/error state and opens the Phase 9 cache-status modal. Gate closed via isolated obsidian-verify harness: valid note cached image + `✓ 1 item`; broken TikZ note inline LaTeX error + `⚠ 1 failed`; error click retries; status-bar click opens modal; 0 visual-blocks console errors/warnings. |
 | Phase 11 — iOS validation (USER-DRIVEN) | DONE — user-gated | 2026-05-02 07:38 | 2026-05-02 07:51 | 0881a217a (preflight) + 5b4451f15 (gate) + hash record | local preflight ✓; user iOS gate ✓ | ~15m | User reported clean/correct on required phone checks 2, 3, and 4. AC11.1-AC11.4 satisfied: mSB5-2 partial note, original crash trigger, and third representative file loaded correctly on iOS. |
-| Phase 12 — Migration tool: legacy → new layout | In Progress | 2026-05-02 08:38 | | | | | Depends on Phase 7+. |
+| Phase 12 — Migration tool: legacy → new layout | In Progress — rename prep complete | 2026-05-02 08:38 | | 6a64cc6c3 (auto-backup rename capture) + prep commit pending | python 169/169 ✓ + jest 79/79 ✓ + build ✓ + obsidian-verify canary ✓ + migration dry-run ✓ | | Plugin/product renamed to Visual Blocks before destructive migration. Real migration not executed yet; requires explicit approval after dry-run. |
 | Phase 13 — Documentation | Not Started | | | | | | 2–3h est. Final phase before optional 14. |
 | Phase 14 — gboyd068/SwiftLaTeX hands-on eval | Not Started (optional) | | | | | | OPTIONAL. Skip unless v1 has gaps surfaced during Phase 11. |
 
@@ -64,6 +64,95 @@
 ## Log
 
 _(Most recent first — reverse chronological)_
+
+### Phase 12 — Visual Blocks rename prep before migration — 2026-05-02 IN PROGRESS
+
+**Scope:** Prepare the Phase 12 migration under the final plugin identity
+before running the destructive legacy-cache migration.
+
+**Completed in prep:**
+
+- Renamed the Obsidian plugin identity from `obsidian-render-cache` to
+  `visual-blocks`.
+- Manifest now uses:
+  - `id`: `visual-blocks`
+  - `name`: `Visual Blocks`
+  - `version`: `0.4.0`
+- Package metadata now uses `obsidian-visual-blocks`.
+- Plugin directory is `.obsidian/plugins/visual-blocks/`.
+- `.obsidian/community-plugins.json` now enables `visual-blocks`.
+- Python cache root now targets `.obsidian/plugins/visual-blocks/cache/`.
+- Canonical generated markdown references now use `|visual-blocks`.
+- Compatibility remains for pre-existing `|tikz-cache` and transitional
+  `|render-cache` references in the markdown matcher and migration script.
+- Existing sample/test notes were updated to point at
+  `.obsidian/plugins/visual-blocks/cache/...|visual-blocks`.
+
+**Migration hardening added before real execution:**
+
+- `migrate_to_render_cache.py` now explicitly removes an existing destination
+  SVG before moving the legacy SVG into place.
+- Added regression test
+  `test_real_run_replaces_existing_destination_svg` so the real migration does
+  not depend on platform-specific `shutil.move` overwrite behavior.
+
+**Dry-run result after rename:**
+
+- Command:
+  `/opt/homebrew/Caskroom/miniconda/base/bin/python
+  resources/scripts/python_single/migrate_to_render_cache.py --dry-run`
+- SVG moves: 170
+- Markdown files to update: 100
+- Markdown refs to update: 169
+- Legacy PNGs to delete: 5
+- Orphan SVGs to delete: 3
+- Dropped non-vault/missing index notes: 1
+- Missing SVG refs: 0
+- Old index: `attachments/cache/tikz/index.json`
+- New index: `.obsidian/plugins/visual-blocks/cache/index.json`
+- No filesystem changes were made by the dry-run.
+
+**Verification:**
+
+- Focused migration test:
+  `resources/scripts/python_single/tests/test_migrate_to_render_cache.py` →
+  5/5 pass.
+- Python suite:
+  `/opt/homebrew/Caskroom/miniconda/base/bin/python -m pytest
+  resources/scripts/python_single/tests -q` → 169 passed, 6 skipped.
+- Plugin Jest:
+  `.obsidian/plugins/visual-blocks npm test -- --runInBand` → 79/79 pass.
+- Plugin build:
+  `.obsidian/plugins/visual-blocks npm run build` → production bundle succeeds.
+- Scoped stale-name search:
+  no `obsidian-render-cache`, `.obsidian/plugins/obsidian-render-cache`,
+  `Obsidian Render Cache`, `Render Cache`, or `docs/specs/visual-blocks`
+  references in the active plugin/Python/spec/progress surface.
+- Obsidian UI canary:
+  `node --import tsx run.ts --canary
+  --json=/tmp/visual-blocks-rename-prep-canary-2026-05-02T1100.json` →
+  PASS, 3/3 assertions, 0 console errors, 0 warnings.
+
+**Decisions:**
+
+- **D12.1 — Rename before real migration.** The destructive move should write
+  directly into the final `.obsidian/plugins/visual-blocks/cache/` location
+  instead of migrating once to an old product identity and then moving again.
+- **D12.2 — Keep Python package name `render_cache`.** The user-facing plugin
+  and markdown identity are Visual Blocks; the Python package remains the
+  stable implementation module because renaming it now would add risk without
+  changing UX.
+- **D12.3 — Canonical alt text is `visual-blocks`; compatibility stays.**
+  New/rewritten refs use `|visual-blocks`; `|tikz-cache` and `|render-cache`
+  are still parsed so older notes can be migrated safely.
+- **D12.4 — Do not execute the real migration without explicit approval.**
+  The next command will move 170 SVGs, rewrite 100 markdown files / 169 refs,
+  delete 5 PNGs, delete 3 orphan SVGs, and remove the legacy cache directory.
+  This remains blocked until the user explicitly approves the real run.
+
+**Next approval phrase:**
+
+> `Approved: run Visual Blocks migration`
 
 ### Phase 11 — iOS validation — 2026-05-02 DONE
 

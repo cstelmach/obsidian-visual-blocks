@@ -242,6 +242,8 @@ def execute_plan(plan: MigrationPlan, dry_run: bool) -> MigrationSummary:
     for move in plan.moves:
         move.new_abs.parent.mkdir(parents=True, exist_ok=True)
         if move.old_abs.exists():
+            if move.new_abs.exists():
+                move.new_abs.unlink()
             shutil.move(str(move.old_abs), str(move.new_abs))
 
     for update in plan.markdown_updates:
