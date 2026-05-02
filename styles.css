@@ -2,12 +2,15 @@
  *
  * Wikilink-vs-plugin coexistence:
  *   The author-time pipeline inserts ![[…|visual-blocks]] wikilinks
- *   in the markdown after each rendered block. Obsidian renders those as
- *   <img alt="visual-blocks" …>. Once this plugin is active, its codeblock
- *   processor produces its own <img class="visual-blocks-img" alt="<lang>-cache">.
- *   Without the rule below the user would see two stacked images. The
- *   :not() selector hides the wikilink-rendered images while the higher-
- *   specificity .visual-blocks-img rule keeps the plugin's images visible.
+ *   in the markdown after each rendered block. When the cache lived under
+ *   attachments/, Obsidian rendered those as <img alt="visual-blocks" …>.
+ *   The Phase 12 plugin-owned cache now lives under .obsidian/plugins/,
+ *   where Obsidian's native wikilink resolver can also produce a broken
+ *   .internal-embed / .image-embed wrapper. Once this plugin is active,
+ *   its codeblock processor produces its own <img class="visual-blocks-img"
+ *   alt="<lang>-cache">. Without the rules below the user would see the
+ *   plugin image plus either a duplicate native image or a native "could
+ *   not be found" message.
  *
  *   Specificity: img[alt~="tikz-cache"]:not(.visual-blocks-img) is (0,2,1)
  *   which beats the legacy .obsidian/snippets/tikz-cache.css rule
@@ -20,6 +23,18 @@ img[alt~="tikz-cache"]:not(.visual-blocks-img),
 img[alt~="render-cache"]:not(.visual-blocks-img),
 img[alt~="visual-blocks"]:not(.visual-blocks-img) {
     display: none;
+}
+
+.internal-embed[src*=".obsidian/plugins/visual-blocks/cache/"],
+.internal-embed[data-src*=".obsidian/plugins/visual-blocks/cache/"],
+.internal-embed[alt~="visual-blocks"],
+.image-embed[src*=".obsidian/plugins/visual-blocks/cache/"],
+.image-embed[data-src*=".obsidian/plugins/visual-blocks/cache/"],
+.image-embed[alt~="visual-blocks"],
+.markdown-embed[src*=".obsidian/plugins/visual-blocks/cache/"],
+.markdown-embed[data-src*=".obsidian/plugins/visual-blocks/cache/"],
+.markdown-embed[alt~="visual-blocks"] {
+    display: none !important;
 }
 
 /* Re-show codeblock wrappers for the languages we handle. The legacy

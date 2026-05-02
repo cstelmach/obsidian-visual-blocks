@@ -3,6 +3,9 @@
  * The actual subprocess spawn is smoke-tested at the user gate (it depends
  * on macOS PATH + Python install state).
  */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { buildSpawnArgs, shellEscape } from "../src/render";
 import { DEFAULT_SETTINGS } from "../src/settings";
 
@@ -92,5 +95,29 @@ describe("buildSpawnArgs (login shell mode)", () => {
   it("escapes paths with single quotes correctly", () => {
     const r = buildSpawnArgs(settings, ["it's-a-file.md"], "/bin/zsh");
     expect(r.args[1]).toContain("'it'\\''s-a-file.md'");
+  });
+});
+
+describe("styles.css native cache-embed suppression", () => {
+  const styles = readFileSync(resolve(process.cwd(), "styles.css"), "utf8");
+
+  it("hides Obsidian native wrappers for plugin-owned cache wikilinks", () => {
+    expect(styles).toContain(
+      '.internal-embed[src*=".obsidian/plugins/visual-blocks/cache/"]',
+    );
+    expect(styles).toContain(
+      '.image-embed[src*=".obsidian/plugins/visual-blocks/cache/"]',
+    );
+    expect(styles).toContain(
+      '.markdown-embed[src*=".obsidian/plugins/visual-blocks/cache/"]',
+    );
+  });
+
+  it("does not hide the plugin-rendered image class", () => {
+    expect(styles).toContain(".visual-blocks-block img");
+    expect(styles).toContain(
+      'img[alt~="visual-blocks"]:not(.visual-blocks-img)',
+    );
+    expect(styles).not.toContain(".visual-blocks-img {\n    display: none");
   });
 });

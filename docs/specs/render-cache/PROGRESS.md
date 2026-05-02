@@ -3,10 +3,11 @@
 **Spec:** `/Users/cs/Obsidian/_/docs/specs/render-cache/SPEC.md`
 **Plan:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PLAN.md`
 **Archive:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PROGRESS_ARCHIVE.md` (Phase 1-6 + Initialization + diagnostic checkpoint)
-**Status:** Phase 12 migration complete agent-side; user display gate pending.
+**Status:** Phase 12 migration complete agent-side; native-embed display fix
+applied; user re-gate pending.
 **Mode:** Manual (user-driven phase progression)
 **Started:** 2026-04-27
-**Last Updated:** 2026-05-02 (Phase 12 real migration complete agent-side)
+**Last Updated:** 2026-05-02 (Phase 12 native-embed display fix applied)
 
 > **Mode note:** PLAN.md L4 declares manual mode. SPEC §11.4 requires each
 > phase to end at a "Direct user feedback (gate)" before the next begins.
@@ -50,7 +51,7 @@
 | Phase 9 — Plugin commands and modes | DONE — gate closed | 2026-04-28 | 2026-05-01 (obsidian-verify gate) | 8db247eec + gate log | jest 73/73 ✓ + python 169/169 ✓ + obsidian-verify gate ✓ | ~3h + gate | 4 new src modules (settings/render/cacheStatus/commands; ~1000 lines) + 4 new test files (49 new pure-function tests). 7 commands registered (refresh-block / refresh-note / refresh-vault / show-status / sweep / toggle-mode / clear-all); 3 modes (hybrid / cache-only / live with mobile auto-override AC9.9); SettingTab w/ 5 controls; triggerOnSave save hook (3s debounced, desktop-only). Gate closed via isolated obsidian-verify harness run: desktop plugin load/settings/commands/save/live/sweep/clear-all passed; iOS physical UI not automatable in desktop harness, mobile override covered by unit tests and remains in Phase 11 iOS validation. |
 | Phase 10 — Plugin error display + status bar | DONE — gate closed | 2026-05-01 | 2026-05-01 (obsidian-verify gate) | cfe598614 + Phase 10 log | jest 79/79 ✓ + python 170/170 ✓ + obsidian-verify gate ✓ | ~2h | Python now preserves failed block entries in `index.json` with `lastError`; plugin shows retryable inline error blocks before image/placeholder handling; status bar shows per-note idle/rendering/error state and opens the Phase 9 cache-status modal. Gate closed via isolated obsidian-verify harness: valid note cached image + `✓ 1 item`; broken TikZ note inline LaTeX error + `⚠ 1 failed`; error click retries; status-bar click opens modal; 0 visual-blocks console errors/warnings. |
 | Phase 11 — iOS validation (USER-DRIVEN) | DONE — user-gated | 2026-05-02 07:38 | 2026-05-02 07:51 | 0881a217a (preflight) + 5b4451f15 (gate) + hash record | local preflight ✓; user iOS gate ✓ | ~15m | User reported clean/correct on required phone checks 2, 3, and 4. AC11.1-AC11.4 satisfied: mSB5-2 partial note, original crash trigger, and third representative file loaded correctly on iOS. |
-| Phase 12 — Migration tool: legacy → new layout | DONE (agent) — user gate pending | 2026-05-02 08:38 | 2026-05-02 23:12 | 6a64cc6c3 + 25bb544bc + 65641ef64 + a2e64472b | python 169/169 ✓ + jest 79/79 ✓ + build ✓ + canary ✓ + migration execute ✓ | | Real migration executed after explicit user approval. 170 SVGs moved to `.obsidian/plugins/visual-blocks/cache/v1/`; 100 markdown files / 169 refs rewritten; 5 PNGs + 3 orphan SVGs deleted; legacy dir removed. |
+| Phase 12 — Migration tool: legacy → new layout | DONE (agent) — user re-gate pending | 2026-05-02 08:38 | 2026-05-02 23:12 | 6a64cc6c3 + 25bb544bc + 65641ef64 + a2e64472b + native-embed fix | python 169/169 ✓ + jest 81/81 ✓ + build ✓ + canary ✓ + migration execute ✓ | | Real migration executed after explicit user approval. 170 SVGs moved to `.obsidian/plugins/visual-blocks/cache/v1/`; 100 markdown files / 169 refs rewritten; 5 PNGs + 3 orphan SVGs deleted; legacy dir removed. User gate surfaced native Obsidian `.obsidian/plugins/...` wikilink resolver messages despite plugin images loading; CSS fix hides only those native wrappers. |
 | Phase 13 — Documentation | Not Started | | | | | | 2–3h est. Final phase before optional 14. |
 | Phase 14 — gboyd068/SwiftLaTeX hands-on eval | Not Started (optional) | | | | | | OPTIONAL. Skip unless v1 has gaps surfaced during Phase 11. |
 
@@ -64,6 +65,77 @@
 ## Log
 
 _(Most recent first — reverse chronological)_
+
+### Phase 12 — Native Obsidian embed leak after migration — 2026-05-02 FIX APPLIED
+
+**Trigger:** Phase 12 desktop user gate failed after the real Visual Blocks
+migration. The note showed the Visual Blocks-rendered images, but also native
+Obsidian messages such as:
+
+- `.obsidian/plugins/visual-blocks/cache/v1/kn/math/concepts/mSB3-4_reals/0__814d986af7c9302c.svg could not be found`
+- `.obsidian/plugins/visual-blocks/cache/v1/kn/math/concepts/mSB5-2_partial/0__878b1a3ff7e1b4d6.svg could not be found`
+
+The copied image URL was an `app://.../.obsidian/plugins/visual-blocks/cache/...`
+resource URL, proving the plugin-rendered image path existed and loaded.
+
+**Diagnosis:**
+
+- The migrated SVG files exist on disk under
+  `.obsidian/plugins/visual-blocks/cache/v1/...`.
+- The Visual Blocks plugin renders those files correctly through
+  `app.vault.adapter.getResourcePath(entry.cachePath)`.
+- The failure is a separate native Obsidian wikilink layer:
+  the markdown still contains `![[.obsidian/plugins/...|visual-blocks]]`
+  as the durable source ref, and Obsidian's native resolver does not treat
+  hidden `.obsidian/plugins/...` paths as normal vault embeds.
+- Existing plugin CSS hid only successful native `<img alt="visual-blocks">`
+  duplicates. It did not hide native `.internal-embed` / `.image-embed` /
+  `.markdown-embed` wrappers that render a "could not be found" message.
+
+**Fix:**
+
+- Updated `.obsidian/plugins/visual-blocks/styles.css` to hide native Obsidian
+  embed wrappers that point at `.obsidian/plugins/visual-blocks/cache/` or carry
+  `alt~="visual-blocks"`.
+- Kept `.visual-blocks-img` visible; the plugin-owned image is still the
+  authoritative display path.
+- Added regression coverage in
+  `.obsidian/plugins/visual-blocks/tests/render.test.ts` so the native wrapper
+  suppression selectors cannot be dropped silently.
+
+**Verification:**
+
+- Plugin Jest:
+  `.obsidian/plugins/visual-blocks npm test -- --runInBand` → 81/81 pass.
+- Plugin build:
+  `.obsidian/plugins/visual-blocks npm run build` → production build succeeds.
+- Python:
+  `/opt/homebrew/Caskroom/miniconda/base/bin/python -m pytest
+  resources/scripts/python_single/tests -q` → 169 passed, 6 skipped.
+- Obsidian harness canary:
+  `resources/tests/harness node --import tsx run.ts --canary
+  --json=/tmp/visual-blocks-phase12-native-embed-hide-canary-2026-05-02.json`
+  → PASS, 3/3 assertions, 0 console errors, 0 warnings.
+
+**User re-gate:**
+
+Reload Visual Blocks on desktop (toggle the plugin off/on, or reload the
+Obsidian window), then reopen:
+
+- `kn/math/concepts/mSB3-4_reals.md`
+- `kn/math/concepts/mSB5-2_partial.md`
+- `kn/math/concepts/mLA5-1_eigenvalues.md`
+- `kn/math/concepts/_RENDER_TEST_d2.md`
+
+Confirm:
+
+- The diagrams render once via Visual Blocks.
+- No `.obsidian/plugins/visual-blocks/cache/... could not be found` messages
+  remain.
+- No duplicate native images remain.
+- The status bar still reports the expected cached count.
+
+Phase 12 is **not** user-gate closed until this re-gate passes.
 
 ### Phase 12 — Visual Blocks real migration — 2026-05-02 AGENT COMPLETE
 
