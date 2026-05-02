@@ -3,10 +3,10 @@
 **Spec:** `/Users/cs/Obsidian/_/docs/specs/render-cache/SPEC.md`
 **Plan:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PLAN.md`
 **Archive:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PROGRESS_ARCHIVE.md` (Phase 1-6 + Initialization + diagnostic checkpoint)
-**Status:** Phase 12 migration tool in progress; Visual Blocks rename prep complete.
+**Status:** Phase 12 migration complete agent-side; user display gate pending.
 **Mode:** Manual (user-driven phase progression)
 **Started:** 2026-04-27
-**Last Updated:** 2026-05-02 (Phase 12 rename prep before real migration)
+**Last Updated:** 2026-05-02 (Phase 12 real migration complete agent-side)
 
 > **Mode note:** PLAN.md L4 declares manual mode. SPEC §11.4 requires each
 > phase to end at a "Direct user feedback (gate)" before the next begins.
@@ -50,7 +50,7 @@
 | Phase 9 — Plugin commands and modes | DONE — gate closed | 2026-04-28 | 2026-05-01 (obsidian-verify gate) | 8db247eec + gate log | jest 73/73 ✓ + python 169/169 ✓ + obsidian-verify gate ✓ | ~3h + gate | 4 new src modules (settings/render/cacheStatus/commands; ~1000 lines) + 4 new test files (49 new pure-function tests). 7 commands registered (refresh-block / refresh-note / refresh-vault / show-status / sweep / toggle-mode / clear-all); 3 modes (hybrid / cache-only / live with mobile auto-override AC9.9); SettingTab w/ 5 controls; triggerOnSave save hook (3s debounced, desktop-only). Gate closed via isolated obsidian-verify harness run: desktop plugin load/settings/commands/save/live/sweep/clear-all passed; iOS physical UI not automatable in desktop harness, mobile override covered by unit tests and remains in Phase 11 iOS validation. |
 | Phase 10 — Plugin error display + status bar | DONE — gate closed | 2026-05-01 | 2026-05-01 (obsidian-verify gate) | cfe598614 + Phase 10 log | jest 79/79 ✓ + python 170/170 ✓ + obsidian-verify gate ✓ | ~2h | Python now preserves failed block entries in `index.json` with `lastError`; plugin shows retryable inline error blocks before image/placeholder handling; status bar shows per-note idle/rendering/error state and opens the Phase 9 cache-status modal. Gate closed via isolated obsidian-verify harness: valid note cached image + `✓ 1 item`; broken TikZ note inline LaTeX error + `⚠ 1 failed`; error click retries; status-bar click opens modal; 0 visual-blocks console errors/warnings. |
 | Phase 11 — iOS validation (USER-DRIVEN) | DONE — user-gated | 2026-05-02 07:38 | 2026-05-02 07:51 | 0881a217a (preflight) + 5b4451f15 (gate) + hash record | local preflight ✓; user iOS gate ✓ | ~15m | User reported clean/correct on required phone checks 2, 3, and 4. AC11.1-AC11.4 satisfied: mSB5-2 partial note, original crash trigger, and third representative file loaded correctly on iOS. |
-| Phase 12 — Migration tool: legacy → new layout | In Progress — rename prep complete | 2026-05-02 08:38 | | 6a64cc6c3 (auto-backup rename capture) + 25bb544bc (prep) + 65641ef64 (hash-record) | python 169/169 ✓ + jest 79/79 ✓ + build ✓ + obsidian-verify canary ✓ + migration dry-run ✓ | | Plugin/product renamed to Visual Blocks before destructive migration. Real migration not executed yet; requires explicit approval after dry-run. |
+| Phase 12 — Migration tool: legacy → new layout | DONE (agent) — user gate pending | 2026-05-02 08:38 | 2026-05-02 23:12 | 6a64cc6c3 + 25bb544bc + 65641ef64 + Phase 12 migration commit pending | python 169/169 ✓ + jest 79/79 ✓ + build ✓ + canary ✓ + migration execute ✓ | | Real migration executed after explicit user approval. 170 SVGs moved to `.obsidian/plugins/visual-blocks/cache/v1/`; 100 markdown files / 169 refs rewritten; 5 PNGs + 3 orphan SVGs deleted; legacy dir removed. |
 | Phase 13 — Documentation | Not Started | | | | | | 2–3h est. Final phase before optional 14. |
 | Phase 14 — gboyd068/SwiftLaTeX hands-on eval | Not Started (optional) | | | | | | OPTIONAL. Skip unless v1 has gaps surfaced during Phase 11. |
 
@@ -64,6 +64,105 @@
 ## Log
 
 _(Most recent first — reverse chronological)_
+
+### Phase 12 — Visual Blocks real migration — 2026-05-02 AGENT COMPLETE
+
+**Scope:** Execute the already-approved destructive migration from
+`attachments/cache/tikz/` to the final Visual Blocks plugin-managed cache
+layout.
+
+**Approval:**
+
+- User explicitly replied: `Approved: run Visual Blocks migration`.
+- This satisfied the required confirmation gate for the bulk move, markdown
+  rewrite, PNG deletion, orphan deletion, and legacy directory removal.
+
+**Execution result:**
+
+- Command:
+  `/opt/homebrew/Caskroom/miniconda/base/bin/python
+  resources/scripts/python_single/migrate_to_render_cache.py`
+- SVG moves: 170.
+- Markdown files updated: 100.
+- Markdown refs updated: 169.
+- Legacy PNGs deleted: 5.
+- Orphan SVGs deleted: 3.
+- Dropped non-vault/missing index notes: 1.
+- Missing SVG refs: 0.
+- Old index: `attachments/cache/tikz/index.json`.
+- New index: `.obsidian/plugins/visual-blocks/cache/index.json`.
+- Legacy directory removed: true.
+
+**Post-migration structural verification:**
+
+- `.obsidian/plugins/visual-blocks/cache/v1/` contains 170 SVG files.
+- New `index.json` contains 170 cache paths.
+- Index verification: 0 missing cache files; 0 paths outside the
+  `.obsidian/plugins/visual-blocks/cache/v1/` prefix.
+- Markdown verification: 183 `|visual-blocks` embeds found across content
+  roots; 0 missing target files.
+- Post-migration dry run:
+  `migrate_to_render_cache.py --dry-run` reports 0 SVG moves, 0 markdown
+  updates, 0 PNG deletes, 0 orphan SVG deletes, and 0 missing refs.
+- `attachments/cache/tikz/` no longer exists.
+
+**Automated verification:**
+
+- Python:
+  `/opt/homebrew/Caskroom/miniconda/base/bin/python -m pytest
+  resources/scripts/python_single/tests -q` → 169 passed, 6 skipped.
+- Plugin Jest:
+  `.obsidian/plugins/visual-blocks npm test -- --runInBand` → 79/79 pass.
+- Plugin build:
+  `.obsidian/plugins/visual-blocks npm run build` → production bundle
+  succeeds.
+- Obsidian harness canary:
+  `resources/tests/harness node --import tsx run.ts --canary
+  --json=/tmp/visual-blocks-phase12-post-migration-canary-2026-05-02.json`
+  → PASS, 3/3 assertions, 0 console errors, 0 warnings.
+
+**Notes and decisions:**
+
+- **D12.5 — Real migration executed only after explicit approval.** The
+  destructive run matched the refreshed dry-run exactly.
+- **D12.6 — `package-lock.json` local metadata was refreshed.** The ignored
+  local lockfile still had the old `obsidian-render-cache` package name; it
+  now matches `obsidian-visual-blocks` / `0.4.0`. It remains ignored by the
+  plugin-local `.gitignore`, so it is not part of the commit surface.
+- **D12.7 — Archival transcript refs are not active cache refs.** A strict
+  legacy-embed scan finds 14 old `mSB3-4_reals__1__fe1400ae.svg|tikz-cache`
+  strings in journal/inbox/archive transcript notes. They quote prior
+  debugging sessions, not current source-note cache refs. The active source
+  note `kn/math/concepts/mSB3-4_reals.md` now points to the Visual Blocks
+  cache path and verifies as an existing file.
+
+**Divergence check — Phase 12:**
+
+- Files modified vs plan: high by design, because Phase 12 is the planned
+  vault-wide migration phase.
+- Scope: migration script, plugin cache, old cache deletion, markdown ref
+  rewrite, and `PROGRESS.md`.
+- Complexity: no new runtime logic in the real-run step.
+- Status: expected bulk migration divergence; no unplanned feature work.
+
+**User gate — Phase 12:**
+
+Open representative migrated notes in Obsidian desktop and iOS after sync:
+
+- `kn/math/concepts/mSB3-4_reals.md`
+- `kn/math/concepts/mSB5-2_partial.md`
+- `kn/math/concepts/mLA5-1_eigenvalues.md`
+- `kn/math/concepts/_RENDER_TEST_d2.md`
+
+Confirm:
+
+- Visual Blocks renders the diagrams from the new plugin cache path.
+- No broken-image icons for the migrated diagrams.
+- No duplicate legacy `tikz-cache` image remains in the rendered note.
+- Status bar shows the expected cached count rather than cache-miss errors.
+
+When confirmed, reply: `Phase 12 user gate passed` and then trigger
+`Implement Phase 13`.
 
 ### Phase 12 — Visual Blocks rename prep before migration — 2026-05-02 IN PROGRESS
 
