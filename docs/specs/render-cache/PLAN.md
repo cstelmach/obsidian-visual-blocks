@@ -1,4 +1,4 @@
-# Implementation Plan — Obsidian Render Cache
+# Implementation Plan — Obsidian Visual Blocks
 
 **Spec:** `/Users/cs/Obsidian/_/docs/specs/render-cache/SPEC.md`
 **Created:** 2026-04-26
@@ -32,7 +32,7 @@ These are facts about the project at SPEC-acceptance time.
 | 5 cached PNG files at `attachments/cache/tikz/` | Present (~663 KB total) | tikz-cache predecessor work |
 | 5 markdown files have `![[…|tikz-cache]]` PNG references | Present | mSB3-4_reals, mSB5-2_partial, mLA5-1_eigenvalues (×2), mSB3-5_complex |
 | `.obsidian/snippets/tikz-cache.css` (hybrid variant) | Present | `tikz-cache` Phase 5 |
-| `.obsidian/plugins/obsidian-render-cache/` | Does not exist | New, Phase 8 creates |
+| `.obsidian/plugins/visual-blocks/` | Does not exist | New, Phase 8 creates |
 | `dvisvgm` binary | Available via TeX Live | `/Library/TeX/texbin/dvisvgm` |
 | `lualatex` binary | Available | `/Library/TeX/texbin/lualatex` |
 | `dot` binary (Graphviz) | TBD — Phase 3 pre-flight | `which dot` |
@@ -57,7 +57,7 @@ Run **before** Phase 1. Stop if any required check fails.
 | 0.5 | Python 3.10+ | `python3 --version` | `3.10` or higher |
 | 0.6 | Existing tikz_cache.py compiles | `python3 -c "import ast; ast.parse(open('/Users/cs/Obsidian/_/resources/scripts/python_single/tikz_cache.py').read())"` | exit 0 |
 | 0.7 | Existing cache dir | `test -d /Users/cs/Obsidian/_/attachments/cache/tikz && echo OK` | `OK` |
-| 0.8 | New cache dir creatable | `mkdir -p /Users/cs/Obsidian/_/.obsidian/plugins/obsidian-render-cache/cache && echo OK` | `OK` |
+| 0.8 | New cache dir creatable | `mkdir -p /Users/cs/Obsidian/_/.obsidian/plugins/visual-blocks/cache && echo OK` | `OK` |
 
 ### Per-language (deferred to corresponding phase)
 
@@ -752,8 +752,8 @@ grep -c '"[0-9.]*pt"' mSB3-4_reals__1__*.svg    # → 0
 
 **Action:**
 ```bash
-mkdir -p /Users/cs/Obsidian/_/.obsidian/plugins/obsidian-render-cache
-cd /Users/cs/Obsidian/_/.obsidian/plugins/obsidian-render-cache
+mkdir -p /Users/cs/Obsidian/_/.obsidian/plugins/visual-blocks
+cd /Users/cs/Obsidian/_/.obsidian/plugins/visual-blocks
 # Use Obsidian sample plugin as starting point
 git clone https://github.com/obsidianmd/obsidian-sample-plugin .
 rm -rf .git README.md  # we'll rewrite
@@ -765,8 +765,8 @@ npm install
 **Action:** Edit `manifest.json`:
 ```json
 {
-  "id": "obsidian-render-cache",
-  "name": "Render Cache",
+  "id": "visual-blocks",
+  "name": "Visual Blocks",
   "version": "0.1.0",
   "minAppVersion": "1.4.16",
   "description": "Display cached SVGs of TikZ/Graphviz/D2/LilyPond/SMILES code blocks. Renders happen via render_cache.py at save time.",
@@ -847,7 +847,7 @@ identical inputs. Add a fixture test.
 #### Task 8.5 — Smoke test in Obsidian
 
 **Action:** In Obsidian (developer-mode-enabled), reload the plugin
-(Settings → Community plugins → Render Cache → toggle off/on).
+(Settings → Community plugins → Visual Blocks → toggle off/on).
 
 **Verify:**
 - Open a note with a cached TikZ block. Image displays.
@@ -910,7 +910,7 @@ captured a render error. Implement status bar item.
 #### Task 11.1 — User installs plugin on phone
 
 User-side action: open Obsidian on iOS, Settings → Community plugins,
-enable "Render Cache."
+enable "Visual Blocks."
 
 #### Task 11.2 — User opens previously-crashing notes
 
@@ -959,7 +959,7 @@ User chooses; logged in PROGRESS.md.
 
 ```python
 """One-shot migration from attachments/cache/tikz/ to
-.obsidian/plugins/obsidian-render-cache/cache/v1/<note-path>/."""
+.obsidian/plugins/visual-blocks/cache/v1/<note-path>/."""
 
 # 1. Walk attachments/cache/tikz/
 # 2. For each *.svg, parse note stem from filename
@@ -1014,12 +1014,12 @@ rm /Users/cs/Obsidian/_/attachments/cache/tikz/*.png
 **Depends on:** Phases 1–12 substantially done.
 
 Deliverables:
-- `.obsidian/plugins/obsidian-render-cache/README.md` — user-facing plugin
+- `.obsidian/plugins/visual-blocks/README.md` — user-facing plugin
   README
 - `resources/scripts/python_single/render_cache/CLAUDE.md` — agent-facing
   package documentation (per vault convention)
 - Update `docs/specs/render-cache/PROGRESS.md` final summary
-- Update `CLAUDE.md` (root) with section pointing to render-cache as
+- Update `CLAUDE.md` (root) with section pointing to visual-blocks as
   the canonical TikZ pipeline
 
 ---
@@ -1127,7 +1127,7 @@ to the phase that verifies it.
 | Phase 1 SVG migration broke things | `git revert` the Phase 1 commit; existing PNG cache remains usable; legacy `tikz_cache.py` still functional |
 | Phase 2 restructure introduced bugs | `git revert`; old `tikz_cache.py` is intact in same commit |
 | Phase 7 postprocess broke an SVG visually | Disable the offending rule (`applyHardening: false` in plugin settings) OR comment out the rule in Python; re-render |
-| Phase 8 plugin breaks Obsidian | Disable plugin in Settings → Community plugins; remove `.obsidian/plugins/obsidian-render-cache/` if needed |
+| Phase 8 plugin breaks Obsidian | Disable plugin in Settings → Community plugins; remove `.obsidian/plugins/visual-blocks/` if needed |
 | Phase 12 migration moved files wrong | `git revert`; cached SVGs restored to `attachments/cache/tikz/`; markdown refs reverted |
 
 The vault's auto-backup commits every ~10 minutes. Before any destructive
@@ -1165,7 +1165,7 @@ checkpoint.
 │   │   └── cache_paths.py                          (Phase 2)
 │   └── migrate_to_render_cache.py                  (Phase 12)
 │
-├── .obsidian/plugins/obsidian-render-cache/        ← created Phase 8
+├── .obsidian/plugins/visual-blocks/        ← created Phase 8
 │   ├── manifest.json
 │   ├── main.js                                     ← bundled TS
 │   ├── styles.css

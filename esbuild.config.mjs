@@ -2,7 +2,7 @@ import esbuild from "esbuild";
 import process from "process";
 import builtins from "builtin-modules";
 
-const banner = `/* obsidian-render-cache — built from src/main.ts. Do not edit by hand. */`;
+const banner = `/* visual-blocks — built from src/main.ts. Do not edit by hand. */`;
 
 const prod = process.argv.includes("production");
 

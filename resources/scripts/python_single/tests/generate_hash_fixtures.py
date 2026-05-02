@@ -7,7 +7,7 @@ Both sides consume the file:
 - Python  : ``tests/test_hash_fixtures.py`` — re-derives every key, asserts
             equality with ``expectedKey``. Catches a regression in
             ``compute_key`` or ``normalize`` immediately.
-- TypeScript: ``.obsidian/plugins/obsidian-render-cache/tests/hash.test.ts``
+- TypeScript: ``.obsidian/plugins/visual-blocks/tests/hash.test.ts``
             — ports the same algorithm, asserts byte-identity. Catches
             divergence between Python and the plugin (T12).
 
@@ -34,7 +34,7 @@ DEFAULT_OUT = (
     REPO_ROOT
     / ".obsidian"
     / "plugins"
-    / "obsidian-render-cache"
+    / "visual-blocks"
     / "tests"
     / "fixtures"
     / "hash_fixtures.json"

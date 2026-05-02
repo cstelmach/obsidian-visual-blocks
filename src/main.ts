@@ -1,5 +1,5 @@
 /**
- * obsidian-render-cache — Phase 9 plugin (commands + modes + save hook).
+ * visual-blocks — Phase 9 plugin (commands + modes + save hook).
  *
  * Architecture: a viewer + thin command surface for Python pipeline.
  * Renders happen at save time via resources/scripts/python_single/render_cache.py
@@ -17,7 +17,7 @@
  * For each registered language the plugin:
  *   1. Computes the canonical 16-char SHA-256 cache key from the block
  *      source (see hash.ts; byte-identical to Python compute_key per T12).
- *   2. Looks up the entry in .obsidian/plugins/obsidian-render-cache/cache/index.json by
+ *   2. Looks up the entry in .obsidian/plugins/visual-blocks/cache/index.json by
  *      sourceHash (advisor: first match wins; identical-source duplicates
  *      have identical cached SVGs).
  *   3. Mode-aware behavior:
@@ -61,7 +61,7 @@ import {
 const LANGUAGES = ["tikz", "graphviz", "d2", "lilypond", "smiles"] as const;
 type Lang = (typeof LANGUAGES)[number];
 
-const CACHE_ROOT = ".obsidian/plugins/obsidian-render-cache/cache";
+const CACHE_ROOT = ".obsidian/plugins/visual-blocks/cache";
 const INDEX_PATH = `${CACHE_ROOT}/index.json`;
 
 interface BlockEntry {
@@ -109,7 +109,7 @@ export default class RenderCachePlugin extends Plugin {
     };
 
     this.statusBarEl = this.addStatusBarItem();
-    this.statusBarEl.classList.add("render-cache-status-bar");
+    this.statusBarEl.classList.add("visual-blocks-status-bar");
     this.statusBarEl.onclick = () => {
       new CacheStatusModal(this.app, aggregateStatus(this.index)).open();
     };
@@ -151,13 +151,13 @@ export default class RenderCachePlugin extends Plugin {
     );
 
     console.log(
-      `obsidian-render-cache: loaded; processors registered for ${LANGUAGES.join(", ")}; ` +
+      `visual-blocks: loaded; processors registered for ${LANGUAGES.join(", ")}; ` +
         `mode=${this.settings.mode}; triggerOnSave=${this.settings.triggerOnSave}`,
     );
   }
 
   async onunload(): Promise<void> {
-    console.log("obsidian-render-cache: unloaded");
+    console.log("visual-blocks: unloaded");
   }
 
   // ─── settings ─────────────────────────────────────────────────────────
@@ -183,7 +183,7 @@ export default class RenderCachePlugin extends Plugin {
       const text = await this.app.vault.adapter.read(INDEX_PATH);
       this.index = JSON.parse(text) as IndexFile;
     } catch (err) {
-      console.error("obsidian-render-cache: failed to load index", err);
+      console.error("visual-blocks: failed to load index", err);
       this.index = null;
     } finally {
       this.updateStatusBar();
@@ -199,7 +199,7 @@ export default class RenderCachePlugin extends Plugin {
     ctx: MarkdownPostProcessorContext,
   ): Promise<void> {
     el.empty();
-    const wrapper = el.createDiv({ cls: "render-cache-block" });
+    const wrapper = el.createDiv({ cls: "visual-blocks-block" });
     const mode = effectiveMode(this.settings, Platform.isMobile);
 
     // Live mode (desktop only — mobile auto-overrides to cache-only above).
@@ -284,7 +284,7 @@ export default class RenderCachePlugin extends Plugin {
 
     const src = this.app.vault.adapter.getResourcePath(entry.cachePath);
     wrapper.createEl("img", {
-      cls: "render-cache-img",
+      cls: "visual-blocks-img",
       attr: {
         src,
         alt: `${lang}-cache`,
@@ -309,7 +309,7 @@ export default class RenderCachePlugin extends Plugin {
   ): void {
     const el = parent.createDiv({
       cls:
-        "render-cache-placeholder" + (clickable ? " is-clickable" : ""),
+        "visual-blocks-placeholder" + (clickable ? " is-clickable" : ""),
     });
     el.appendText(msg);
     if (clickable) {
@@ -371,18 +371,18 @@ export default class RenderCachePlugin extends Plugin {
   ): void {
     const el = parent.createDiv({
       cls:
-        "render-cache-inline-error" + (clickable ? " is-clickable" : ""),
+        "visual-blocks-inline-error" + (clickable ? " is-clickable" : ""),
     });
     el.createDiv({
-      cls: "render-cache-error-title",
+      cls: "visual-blocks-error-title",
       text: `${lang}: render failed`,
     });
     el.createEl("pre", {
-      cls: "render-cache-error-message",
+      cls: "visual-blocks-error-message",
       text: message,
     });
     el.createDiv({
-      cls: "render-cache-error-help",
+      cls: "visual-blocks-error-help",
       text: clickable
         ? "Click to retry this note."
         : "Open on desktop to retry.",
@@ -399,9 +399,9 @@ export default class RenderCachePlugin extends Plugin {
 
   private renderError(el: HTMLElement, lang: Lang, err: unknown): void {
     el.empty();
-    const div = el.createDiv({ cls: "render-cache-error" });
+    const div = el.createDiv({ cls: "visual-blocks-error" });
     div.appendText(
-      `obsidian-render-cache: ${lang} block failed — ${String(err)}`,
+      `visual-blocks: ${lang} block failed — ${String(err)}`,
     );
   }
 
@@ -436,12 +436,12 @@ export default class RenderCachePlugin extends Plugin {
       await this.reloadIndex();
       if (result.exitCode !== 0) {
         console.warn(
-          `render-cache: triggerOnSave on ${path} exited ${result.exitCode}.\n` +
+          `visual-blocks: triggerOnSave on ${path} exited ${result.exitCode}.\n` +
             result.stderr.slice(0, 400),
         );
       }
     } catch (err) {
-      console.warn("render-cache: triggerOnSave spawn failed", err);
+      console.warn("visual-blocks: triggerOnSave spawn failed", err);
     } finally {
       this.setRendering(path, false);
     }
@@ -467,7 +467,7 @@ export default class RenderCachePlugin extends Plugin {
     this.statusBarEl.textContent = statusBarText(noteStatus, isRendering);
     this.statusBarEl.setAttribute(
       "title",
-      "Render Cache status — click for cache details",
+      "Visual Blocks status — click for cache details",
     );
     this.statusBarEl.classList.toggle(
       "has-error",

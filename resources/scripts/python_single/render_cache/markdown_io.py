@@ -8,9 +8,9 @@ Both ``tikz`` and ``tikz-paused`` are matched and BOTH normalise to
 ``language="tikz"`` for hash purposes — pausing or unpausing a block is a
 display-only change and must not invalidate the cache.
 
-Phase 12 writes image refs as ``![[...|render-cache]]``. The matcher still
-accepts the legacy ``tikz-cache`` alt tag so old refs are rewritten in place
-rather than duplicated.
+Phase 12 writes image refs as ``![[...|visual-blocks]]``. The matcher still
+accepts legacy ``tikz-cache`` and interim ``render-cache`` alt tags so old
+refs are rewritten in place rather than duplicated.
 """
 from __future__ import annotations
 
@@ -30,10 +30,10 @@ BLOCK_RE = re.compile(
 
 # Match an immediately-following cache image reference. Both ``.png`` (legacy
 # Phase 0/1) and ``.svg`` (Phase 1+) are accepted so refs get rewritten in
-# place rather than duplicated. Alt accepts legacy ``tikz-cache`` and canonical
-# Phase 12 ``render-cache``.
+# place rather than duplicated. Alt accepts legacy ``tikz-cache``, interim
+# ``render-cache``, and canonical Phase 12 ``visual-blocks``.
 CACHE_REF_RE = re.compile(
-    r"\n+!\[\[([^\]|\n]+\.(?:png|svg))\|(?:tikz-cache|render-cache)\]\]"
+    r"\n+!\[\[([^\]|\n]+\.(?:png|svg))\|(?:tikz-cache|render-cache|visual-blocks)\]\]"
 )
 
 # Map raw fence tags to canonical hashing language.

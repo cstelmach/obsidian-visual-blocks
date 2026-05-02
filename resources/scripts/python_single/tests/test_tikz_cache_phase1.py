@@ -33,7 +33,7 @@ ADAPTER = Path("/Users/cs/Obsidian/_/resources/scripts/python_single/render_cach
 CLI = Path("/Users/cs/Obsidian/_/resources/scripts/python_single/render_cache.py")
 SMOKE_MD = Path("/Users/cs/Obsidian/_/kn/math/concepts/mSB3-4_reals.md")
 CACHE_DIR = Path(
-    "/Users/cs/Obsidian/_/.obsidian/plugins/obsidian-render-cache/cache/v1"
+    "/Users/cs/Obsidian/_/.obsidian/plugins/visual-blocks/cache/v1"
 )
 
 
@@ -233,9 +233,9 @@ def test_smoke_render_produces_path_only_svg(tmp_path: Path) -> None:
         # hashes from Phase 1 are also tolerated for transition compatibility.
         new_md = SMOKE_MD.read_text(encoding="utf-8")
         ref_re = re.compile(
-            rf"!\[\[\.obsidian/plugins/obsidian-render-cache/cache/v1/"
+            rf"!\[\[\.obsidian/plugins/visual-blocks/cache/v1/"
             rf"kn/math/concepts/{re.escape(SMOKE_MD.stem)}/"
-            rf"0__[0-9a-f]{{16}}\.svg\|render-cache\]\]"
+            rf"0__[0-9a-f]{{16}}\.svg\|visual-blocks\]\]"
         )
         assert ref_re.search(new_md), (
             f"Markdown ref not updated to .svg in {SMOKE_MD.name}"
@@ -248,5 +248,5 @@ def test_smoke_render_produces_path_only_svg(tmp_path: Path) -> None:
             # The migration phase owns persistent markdown rewrites; this smoke
             # test restores its fixture if an interrupted render leaves a bad ref.
             new_text = SMOKE_MD.read_text(encoding="utf-8")
-            if "render-cache" not in new_text:
+            if "visual-blocks" not in new_text:
                 SMOKE_MD.write_text(md_snapshot, encoding="utf-8")

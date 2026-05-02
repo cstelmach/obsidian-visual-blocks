@@ -1,5 +1,5 @@
 /**
- * obsidian-render-cache — Phase 9 command implementations.
+ * visual-blocks — Phase 9 command implementations.
  *
  * The 7 commands per SPEC §5 Phase 9:
  *   refresh-block (AC9.1)
@@ -117,8 +117,8 @@ export interface CommandContext {
   reloadIndex: () => Promise<void>;
   getIndex: () => IndexShape | null;
   setRendering?: (sourcePath: string, rendering: boolean) => void;
-  cacheRoot: string; // e.g., ".obsidian/plugins/obsidian-render-cache/cache"
-  indexPath: string; // e.g., ".obsidian/plugins/obsidian-render-cache/cache/index.json"
+  cacheRoot: string; // e.g., ".obsidian/plugins/visual-blocks/cache"
+  indexPath: string; // e.g., ".obsidian/plugins/visual-blocks/cache/index.json"
 }
 
 /** Register all 7 commands with the plugin's command palette. */
@@ -199,7 +199,7 @@ async function refreshBlock(ctx: CommandContext): Promise<void> {
       await ctx.app.vault.modify(file, source);
     }
   } catch (err) {
-    console.warn("render-cache: refresh-block disk-sync failed", err);
+    console.warn("visual-blocks: refresh-block disk-sync failed", err);
   }
 
   // Find the matching index entry by blockIdx (within the same note).
@@ -212,7 +212,7 @@ async function refreshBlock(ctx: CommandContext): Promise<void> {
       const exists = await ctx.app.vault.adapter.exists(entry.cachePath);
       if (exists) await ctx.app.vault.adapter.remove(entry.cachePath);
     } catch (err) {
-      console.warn("render-cache: refresh-block remove failed", err);
+      console.warn("visual-blocks: refresh-block remove failed", err);
     }
   }
 
@@ -252,7 +252,7 @@ async function refreshNote(ctx: CommandContext): Promise<void> {
         await ctx.app.vault.modify(file, buffer);
       }
     } catch (err) {
-      console.warn("render-cache: refresh-note disk-sync failed", err);
+      console.warn("visual-blocks: refresh-note disk-sync failed", err);
     }
   }
 
@@ -426,7 +426,7 @@ class ConfirmationModal extends Modal {
     contentEl.empty();
     contentEl.createEl("h2", { text: this.title });
     contentEl.createEl("p", { text: this.body });
-    const btnRow = contentEl.createEl("div", { cls: "render-cache-btn-row" });
+    const btnRow = contentEl.createEl("div", { cls: "visual-blocks-btn-row" });
     const cancel = btnRow.createEl("button", { text: "Cancel" });
     cancel.onclick = () => {
       this.resolveOnce(false);
@@ -471,7 +471,7 @@ class ProgressModal extends Modal {
     contentEl.empty();
     contentEl.createEl("h2", { text: this.title });
     this.statusEl = contentEl.createEl("p", { text: "Running…" });
-    this.logEl = contentEl.createEl("pre", { cls: "render-cache-log" });
+    this.logEl = contentEl.createEl("pre", { cls: "visual-blocks-log" });
     this.logEl.style.maxHeight = "300px";
     this.logEl.style.overflow = "auto";
   }
@@ -511,7 +511,7 @@ export function fireLiveRender(
   ).then(async (r) => {
     if (r.exitCode === 0) await ctx.reloadIndex();
   }).catch((err) => {
-    console.warn("render-cache: live render failed", err);
+    console.warn("visual-blocks: live render failed", err);
   }).finally(() => {
     ctx.setRendering?.(filePath, false);
   });

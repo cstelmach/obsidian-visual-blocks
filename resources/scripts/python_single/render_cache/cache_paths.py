@@ -2,7 +2,7 @@
 
 Phase 12 adopts the SPEC §3.8 plugin-managed layout:
 
-``.obsidian/plugins/obsidian-render-cache/cache/v1/<note-path>/<idx>__<hash>.svg``
+``.obsidian/plugins/visual-blocks/cache/v1/<note-path>/<idx>__<hash>.svg``
 
 ``idx`` is the zero-based codeblock index, matching ``index.json``'s
 ``blockIdx`` field. The old flat ``attachments/cache/tikz`` directory remains
@@ -20,7 +20,7 @@ LEGACY_CACHE_DIR = VAULT_ROOT / "attachments" / "cache" / "tikz"
 LEGACY_INDEX_PATH = LEGACY_CACHE_DIR / "index.json"
 
 # Canonical Phase 12+ plugin-managed cache directory.
-CACHE_ROOT = VAULT_ROOT / ".obsidian" / "plugins" / "obsidian-render-cache" / "cache"
+CACHE_ROOT = VAULT_ROOT / ".obsidian" / "plugins" / "visual-blocks" / "cache"
 CACHE_VERSION = "v1"
 CACHE_DIR = CACHE_ROOT / CACHE_VERSION
 INDEX_PATH = CACHE_ROOT / "index.json"

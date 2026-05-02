@@ -1,8 +1,8 @@
-"""One-shot migration from legacy flat cache to Render Cache v1 layout.
+"""One-shot migration from legacy flat cache to Visual Blocks v1 layout.
 
 Moves ``attachments/cache/tikz/*.svg`` into
-``.obsidian/plugins/obsidian-render-cache/cache/v1/<note-path>/`` and rewrites
-markdown image refs from ``tikz-cache`` to ``render-cache``.
+``.obsidian/plugins/visual-blocks/cache/v1/<note-path>/`` and rewrites
+markdown image refs from ``tikz-cache`` to ``visual-blocks``.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ CONTENT_ROOTS = (
 LEGACY_SVG_RE = re.compile(r"^(.+)__(\d+)__([0-9a-f]{8,16})\.svg$")
 LEGACY_PNG_RE = re.compile(r"^(.+)__(\d+)__([0-9a-f]{8,16})\.png$")
 CACHE_REF_RE = re.compile(
-    r"!\[\[([^\]|\n]+\.(?:png|svg))\|(tikz-cache|render-cache)\]\]"
+    r"!\[\[([^\]|\n]+\.(?:png|svg))\|(tikz-cache|render-cache|visual-blocks)\]\]"
 )
 
 
@@ -218,7 +218,7 @@ def build_plan(vault_root: Path = VAULT_ROOT) -> MigrationPlan:
         for old_target, new_target in ref_mappings.items():
             existing = _first_existing_ref_text(old_target, text)
             if existing is not None:
-                replacements[existing] = f"![[{new_target}|render-cache]]"
+                replacements[existing] = f"![[{new_target}|visual-blocks]]"
         if replacements:
             plan.markdown_updates.append(MarkdownUpdate(md, replacements))
 
@@ -273,7 +273,7 @@ def execute_plan(plan: MigrationPlan, dry_run: bool) -> MigrationSummary:
 
 def print_plan(plan: MigrationPlan, summary: MigrationSummary, dry_run: bool) -> None:
     mode = "DRY RUN" if dry_run else "EXECUTE"
-    print(f"Render Cache legacy migration plan ({mode})")
+    print(f"Visual Blocks legacy migration plan ({mode})")
     print(f"- SVG moves: {summary.moved_svgs}")
     print(f"- Markdown files to update: {summary.updated_markdown_files}")
     print(f"- Markdown refs to update: {summary.updated_markdown_refs}")
@@ -301,7 +301,7 @@ def print_plan(plan: MigrationPlan, summary: MigrationSummary, dry_run: bool) ->
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Migrate attachments/cache/tikz to the Render Cache plugin layout."
+        description="Migrate attachments/cache/tikz to the Visual Blocks plugin layout."
     )
     parser.add_argument("--dry-run", action="store_true", help="report only")
     parser.add_argument(

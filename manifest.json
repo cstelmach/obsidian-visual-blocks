@@ -1,6 +1,6 @@
 {
-  "id": "obsidian-render-cache",
-  "name": "Render Cache",
+  "id": "visual-blocks",
+  "name": "Visual Blocks",
   "version": "0.4.0",
   "minAppVersion": "1.4.16",
   "description": "Display cached SVGs of TikZ/Graphviz/D2/LilyPond/SMILES code blocks. Renders happen via render_cache.py at save time; the plugin is a viewer only.",

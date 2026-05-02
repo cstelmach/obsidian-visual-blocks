@@ -1,4 +1,4 @@
-# Progress Log — Obsidian Render Cache
+# Progress Log — Obsidian Visual Blocks
 
 **Spec:** `/Users/cs/Obsidian/_/docs/specs/render-cache/SPEC.md`
 **Plan:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PLAN.md`
@@ -46,9 +46,9 @@
 | Phase 5 — Add LilyPond adapter | DONE | 2026-04-27 14:25 | 2026-04-27 (gate closed this session) | aad9ef7bd (auto-backup) + b1d5e26c2 (PROGRESS) | 15/15 ✓ + 93/93 full suite | ~10m | New `LilyPondAdapter` (`lilypond -dpoint-and-click=#f -dbackend=svg -dno-include-book-title-preview -o <prefix>`). Pre-flight: `lilypond 2.26.0` installed via `brew install lilypond` (user authorised, same pattern as Phase 4 d2). REGISTRY/BLOCK_RE/`_FENCE_TO_LANG`/dispatcher fence-tag list extended (now 5 items). Sandbox `_RENDER_TEST_lilypond.md` (2 LilyPond blocks: C-major scale melody + 2-bar lead sheet with chord names). AC5.2 hard-verified at agent level: `grep -c 'file://'` returns 0 for both cache SVGs. Gate (visual-confirmed): user confirmed both SVGs in QuickLook this session ("Yes, it works, user-gate phase 5 passed"). |
 | Phase 6 — Add RDKit adapter | DONE | 2026-04-27 14:48 | 2026-04-27 (gate closed this session) | dc78c598e (PROGRESS) + 927047133 (auto-backup) | 15/15 ✓ + 108/108 full suite | ~6m | New `SMILESAdapter` — **the only v1 adapter that is pure Python, no shell-out**. Uses `rdkit.Chem.MolFromSmiles` + `AllChem.Compute2DCoords` + `rdMolDraw2D.MolDraw2DSVG` (400×300). Pre-flight: `rdkit 2026.3.1` installed via `pip install rdkit` (user authorised; user asked "uv or pip?" — pip chosen for one-off conda-env install). REGISTRY/BLOCK_RE/`_FENCE_TO_LANG`/dispatcher fence-tag list extended (now 6 items). Sandbox `_RENDER_TEST_smiles.md` (3 SMILES blocks: caffeine / aspirin / ibuprofen). All three render correctly per AC6.2 (rsvg-convert verification at agent level — caffeine purine ring, aspirin acetyl ester + COOH, ibuprofen benzene + isobutyl + α-methyl propanoate). RDKit logger silenced at module import (D6.5) — clean CLI/test output. AC6.3: invalid SMILES → `RenderError` with offending input snippet. Fence-tag derive-from-REGISTRY refactor (D5.6 promise) deliberately deferred to follow-up commit (D6.7). |
 | Phase 7 — Apply SVG postprocessing hardening | DONE | 2026-04-27 15:10 | 2026-04-27 (gate closed this session) | 88a487fc9 (PROGRESS+residual) + a9cd7320c (auto-backup: code+tests+105 cache SVGs) + c25974eeb (D7.8/D7.9/D7.10 honest gate framing) | 43/43 Phase 7 ✓ + 151/151 full suite | ~30m | Three rules in `render_cache/postprocess.py` (`prefix_ids` / `substitute_current_color` / `enforce_viewbox`). Quote-agnostic regexes — PLAN's pseudocode pinned double-quote only and would have silently no-op'd on TikZ + SMILES (both single-quoted). Added CSS-style colour rule for SMILES (`style='...stroke:#000000...'`). Re-rendered 169 cache SVGs via `--all --force`; AC7.1/AC7.2/AC7.3 hard-verified across full cache (0 unprefixed dvisvgm or Graphviz IDs; 0 attribute-form OR CSS-style hardcoded black; 169/169 viewBox; 0/169 pt units). 3 pre-existing TikZ source bugs surfaced for the 3rd time (not Phase 7 regressions). Gate (AC7.4 visual-confirmed): "we see all the svgs in the _RENDER_TEST_d2.md note. We also see the codeblock still and the embedded internal links to the cached svgs". AC7.5 dark-mode follow remains structurally blocked under `<img>` viewing path (D7.8) — re-evaluated at Phase 8 user gate, which under SPEC `<img>` mandate will also remain blocked (Phase 8 user-confirmed via `<img>` per SPEC §3.4/§3.6). |
-| Phase 8 — Plugin scaffold | DONE | 2026-04-27 (this session) | 2026-04-27 (gate closed 2026-04-28) | d035c5cfd (auto-backup, atomic capture: .gitignore + plugin tree + PROGRESS + Python fixture self-test) + 5ec8cf62d (earlier auto-backup: generator script + initial fixture stray) + c070312ed (PROGRESS hash-record) + e101d1e81 (gate-language refinements) | jest 24/24 ✓ + python 150/150 fast ✓ | ~1.5h | New `obsidian-render-cache` plugin at `.obsidian/plugins/obsidian-render-cache/` (.ts source + main.js bundle + manifest + tests + fixtures). Cross-language hash byte-identity (T12) hard-verified: 14 fixtures × 2 languages = 28 round-trip checks passing. Production round-trip on all 3 `_RENDER_TEST_d2.md` blocks confirmed (computed hash == index.json sourceHash). User gate visual-confirmed all 8 verification steps (see Phase 8 Gate Closure inside log entry). MathJax font warnings during step 2 are unrelated (slow-network WOFF loading) and out of plugin scope. |
+| Phase 8 — Plugin scaffold | DONE | 2026-04-27 (this session) | 2026-04-27 (gate closed 2026-04-28) | d035c5cfd (auto-backup, atomic capture: .gitignore + plugin tree + PROGRESS + Python fixture self-test) + 5ec8cf62d (earlier auto-backup: generator script + initial fixture stray) + c070312ed (PROGRESS hash-record) + e101d1e81 (gate-language refinements) | jest 24/24 ✓ + python 150/150 fast ✓ | ~1.5h | New `visual-blocks` plugin at `.obsidian/plugins/visual-blocks/` (.ts source + main.js bundle + manifest + tests + fixtures). Cross-language hash byte-identity (T12) hard-verified: 14 fixtures × 2 languages = 28 round-trip checks passing. Production round-trip on all 3 `_RENDER_TEST_d2.md` blocks confirmed (computed hash == index.json sourceHash). User gate visual-confirmed all 8 verification steps (see Phase 8 Gate Closure inside log entry). MathJax font warnings during step 2 are unrelated (slow-network WOFF loading) and out of plugin scope. |
 | Phase 9 — Plugin commands and modes | DONE — gate closed | 2026-04-28 | 2026-05-01 (obsidian-verify gate) | 8db247eec + gate log | jest 73/73 ✓ + python 169/169 ✓ + obsidian-verify gate ✓ | ~3h + gate | 4 new src modules (settings/render/cacheStatus/commands; ~1000 lines) + 4 new test files (49 new pure-function tests). 7 commands registered (refresh-block / refresh-note / refresh-vault / show-status / sweep / toggle-mode / clear-all); 3 modes (hybrid / cache-only / live with mobile auto-override AC9.9); SettingTab w/ 5 controls; triggerOnSave save hook (3s debounced, desktop-only). Gate closed via isolated obsidian-verify harness run: desktop plugin load/settings/commands/save/live/sweep/clear-all passed; iOS physical UI not automatable in desktop harness, mobile override covered by unit tests and remains in Phase 11 iOS validation. |
-| Phase 10 — Plugin error display + status bar | DONE — gate closed | 2026-05-01 | 2026-05-01 (obsidian-verify gate) | cfe598614 + Phase 10 log | jest 79/79 ✓ + python 170/170 ✓ + obsidian-verify gate ✓ | ~2h | Python now preserves failed block entries in `index.json` with `lastError`; plugin shows retryable inline error blocks before image/placeholder handling; status bar shows per-note idle/rendering/error state and opens the Phase 9 cache-status modal. Gate closed via isolated obsidian-verify harness: valid note cached image + `✓ 1 item`; broken TikZ note inline LaTeX error + `⚠ 1 failed`; error click retries; status-bar click opens modal; 0 render-cache console errors/warnings. |
+| Phase 10 — Plugin error display + status bar | DONE — gate closed | 2026-05-01 | 2026-05-01 (obsidian-verify gate) | cfe598614 + Phase 10 log | jest 79/79 ✓ + python 170/170 ✓ + obsidian-verify gate ✓ | ~2h | Python now preserves failed block entries in `index.json` with `lastError`; plugin shows retryable inline error blocks before image/placeholder handling; status bar shows per-note idle/rendering/error state and opens the Phase 9 cache-status modal. Gate closed via isolated obsidian-verify harness: valid note cached image + `✓ 1 item`; broken TikZ note inline LaTeX error + `⚠ 1 failed`; error click retries; status-bar click opens modal; 0 visual-blocks console errors/warnings. |
 | Phase 11 — iOS validation (USER-DRIVEN) | DONE — user-gated | 2026-05-02 07:38 | 2026-05-02 07:51 | 0881a217a (preflight) + 5b4451f15 (gate) + hash record | local preflight ✓; user iOS gate ✓ | ~15m | User reported clean/correct on required phone checks 2, 3, and 4. AC11.1-AC11.4 satisfied: mSB5-2 partial note, original crash trigger, and third representative file loaded correctly on iOS. |
 | Phase 12 — Migration tool: legacy → new layout | In Progress | 2026-05-02 08:38 | | | | | Depends on Phase 7+. |
 | Phase 13 — Documentation | Not Started | | | | | | 2–3h est. Final phase before optional 14. |
@@ -73,9 +73,9 @@ mobile plugin loading, iCloud/Obsidian Sync behavior, or the prior crash mode.
 
 **Agent-side local preflight completed:**
 
-- Plugin exists at `.obsidian/plugins/obsidian-render-cache/` with
+- Plugin exists at `.obsidian/plugins/visual-blocks/` with
   `manifest.json` version `0.3.0` and `"isDesktopOnly": false`.
-- `.obsidian/community-plugins.json` includes `obsidian-render-cache`, so the
+- `.obsidian/community-plugins.json` includes `visual-blocks`, so the
   plugin is locally enabled and should be available to sync to mobile.
 - `attachments/cache/tikz/index.json` exists with `schemaVersion: 1`, 106 note
   entries, and adapter preamble hashes for TikZ, Graphviz, D2, LilyPond, and
@@ -91,9 +91,9 @@ mobile plugin loading, iCloud/Obsidian Sync behavior, or the prior crash mode.
 
 **Verification run before user gate:**
 
-- `.obsidian/plugins/obsidian-render-cache`: `npm test -- --runInBand` →
+- `.obsidian/plugins/visual-blocks`: `npm test -- --runInBand` →
   79/79 Jest tests pass.
-- `.obsidian/plugins/obsidian-render-cache`: `npm run build` → production
+- `.obsidian/plugins/visual-blocks`: `npm run build` → production
   bundle succeeds.
 - `/opt/homebrew/Caskroom/miniconda/base/bin/python -m pytest
   resources/scripts/python_single/tests -q` → 170/170 Python tests pass.
@@ -104,7 +104,7 @@ mobile plugin loading, iCloud/Obsidian Sync behavior, or the prior crash mode.
   `pytest`; the conda Python at `/opt/homebrew/Caskroom/miniconda/base/bin/python`
   is the verified interpreter. Phase 11 is mobile cache-only and does not spawn
   Python, so this does not block iOS validation. Before testing desktop
-  trigger-on-save or SMILES rendering in the real vault, set Render Cache's
+  trigger-on-save or SMILES rendering in the real vault, set Visual Blocks's
   Python path setting to the conda interpreter if it is not already saved in
   Obsidian's plugin data.
 - During preflight, `attachments/cache/tikz/index.json` and
@@ -117,9 +117,9 @@ mobile plugin loading, iCloud/Obsidian Sync behavior, or the prior crash mode.
 **User phone gate — required results for AC11.1-AC11.4:**
 
 1. On iOS, let the vault finish syncing. Confirm
-   `.obsidian/plugins/obsidian-render-cache/` is present by checking that
-   Settings → Community plugins shows "Render Cache".
-2. Enable "Render Cache" on iOS if it is not already enabled.
+   `.obsidian/plugins/visual-blocks/` is present by checking that
+   Settings → Community plugins shows "Visual Blocks".
+2. Enable "Visual Blocks" on iOS if it is not already enabled.
 3. Open `kn/math/concepts/mSB5-2_partial.md`.
    - Expected: loads cleanly, no crash, no reload loop, page interactive within
      about 2 seconds, partial-derivative surface SVG visible.
@@ -144,7 +144,7 @@ mobile plugin loading, iCloud/Obsidian Sync behavior, or the prior crash mode.
 
 - User reported: "clean/correct on 2,3,4."
 - Interpreted against the immediately preceding gate list:
-  - Step 2: Render Cache enabled on iOS.
+  - Step 2: Visual Blocks enabled on iOS.
   - Step 3: `kn/math/concepts/mSB5-2_partial.md` clean/correct on iOS.
   - Step 4: `kn/math/concepts/_TIKZ_TEST_mSB5-2.md` clean/correct on iOS.
 - The user also confirmed the required representative-file check by including
@@ -200,14 +200,14 @@ retryable inline error blocks, and a status-bar item for per-note cache state.
     omitted from `index.json`.
   - Jest status tests initially failed because `aggregateNoteStatus` and
     `statusBarText` did not exist.
-- `npm test -- --runInBand` in `.obsidian/plugins/obsidian-render-cache`:
+- `npm test -- --runInBand` in `.obsidian/plugins/visual-blocks`:
   79/79 Jest tests pass.
-- `npm run build` in `.obsidian/plugins/obsidian-render-cache`: production
+- `npm run build` in `.obsidian/plugins/visual-blocks`: production
   bundle succeeds.
 - `python3 -m pytest resources/scripts/python_single/tests -q`:
   170/170 Python tests pass.
 - Isolated obsidian-verify harness runner:
-  `/tmp/render-cache-phase10-gate.mjs`
+  `/tmp/visual-blocks-phase10-gate.mjs`
   - PASS: seed temp vault with one valid D2 cache and one broken TikZ
     `lastError` entry.
   - PASS: plugin loads in pinned desktop Obsidian.
@@ -216,9 +216,9 @@ retryable inline error blocks, and a status-bar item for per-note cache state.
     `⚠ 1 failed`.
   - PASS: inline error click retries render and preserves the visible error.
   - PASS: status-bar click opens cache-status modal with error summary.
-  - PASS: final render-cache console check: 0 errors, 0 warnings.
+  - PASS: final visual-blocks console check: 0 errors, 0 warnings.
 - JSON report:
-  `/tmp/render-cache-phase10-gate-2026-05-01T20-43-02-645Z.json`
+  `/tmp/visual-blocks-phase10-gate-2026-05-01T20-43-02-645Z.json`
 - `node --import tsx run.ts --canary` in `resources/tests/harness`:
   PASS canary, 3/3 assertions, 0 console errors, 0 warnings.
 
@@ -275,11 +275,11 @@ skill and harness, without mutating the real vault cache.
 
 **Method:**
 
-- Created a temporary runner at `/tmp/render-cache-phase9-gate.mjs`.
+- Created a temporary runner at `/tmp/visual-blocks-phase9-gate.mjs`.
 - Used the obsidian-verify harness modules (`isolateVault`, `launchElectron`,
   `stabilize`, `captureConsole`, `waitUntilVaultStable`) against a throwaway
   copy of `resources/tests/test-vault/`.
-- Copied the built `obsidian-render-cache` plugin into the temporary vault,
+- Copied the built `visual-blocks` plugin into the temporary vault,
   enabled it in that vault's `.obsidian/community-plugins.json`, and set
   plugin data to use the conda Python path.
 - Copied the Python `render_cache` package into the temporary vault and
@@ -292,7 +292,7 @@ skill and harness, without mutating the real vault cache.
 **Gate result:**
 
 - PASS — plugin loaded cleanly; console log captured:
-  `obsidian-render-cache: loaded; processors registered for tikz, graphviz,
+  `visual-blocks: loaded; processors registered for tikz, graphviz,
   d2, lilypond, smiles; mode=hybrid; triggerOnSave=true`.
 - PASS — settings tab rendered the expected controls: mode, Python path,
   script path, re-render-on-save, login-shell toggle.
@@ -313,18 +313,18 @@ skill and harness, without mutating the real vault cache.
   a progress modal ending in `Done.`
 - PASS — `Clear entire cache (DESTRUCTIVE)` deleted SVGs only inside the
   isolated temporary vault.
-- PASS — final console check: zero render-cache errors and zero warnings.
+- PASS — final console check: zero visual-blocks errors and zero warnings.
 
 **Artifacts:**
 
 - JSON report:
-  `/tmp/render-cache-phase9-gate-2026-05-01T18-36-25-336Z.json`
+  `/tmp/visual-blocks-phase9-gate-2026-05-01T18-36-25-336Z.json`
 - Temporary runner:
-  `/tmp/render-cache-phase9-gate.mjs`
+  `/tmp/visual-blocks-phase9-gate.mjs`
 
 **Additional verification after gate:**
 
-- `npm test -- --runInBand` in `.obsidian/plugins/obsidian-render-cache`:
+- `npm test -- --runInBand` in `.obsidian/plugins/visual-blocks`:
   73/73 Jest tests pass.
 - `python3 -m pytest resources/scripts/python_single/tests -q`:
   169/169 Python tests pass.
@@ -413,13 +413,13 @@ Phase 11 iOS validation gate.
 
 Phase 9 introduces 7 NEW commands and a settings tab. The user gate is more intricate than Phase 8's 8-step procedure — there are 10 acceptance criteria across the 7 commands + 3 modes + save hook. Suggested order (least destructive first):
 
-1. **Reload the plugin** (Settings → Community plugins → Render Cache → toggle OFF then ON). Open Cmd+Opt+I → Console; expect:
+1. **Reload the plugin** (Settings → Community plugins → Visual Blocks → toggle OFF then ON). Open Cmd+Opt+I → Console; expect:
    ```
-   obsidian-render-cache: loaded; processors registered for tikz, graphviz, d2, lilypond, smiles; mode=hybrid; triggerOnSave=true
+   visual-blocks: loaded; processors registered for tikz, graphviz, d2, lilypond, smiles; mode=hybrid; triggerOnSave=true
    ```
-   No red `Render Cache:` lines. (regression check: AC8.1 still passes after Phase 9 changes)
+   No red `Visual Blocks:` lines. (regression check: AC8.1 still passes after Phase 9 changes)
 
-2. **Open Settings → Render Cache.** Verify 5 controls render: render-mode dropdown (default hybrid), python-path text field (default `python3`), script-path text field (default `resources/scripts/python_single/render_cache.py`), re-render-on-save toggle (default ON), spawn-through-login-shell toggle (default ON).
+2. **Open Settings → Visual Blocks.** Verify 5 controls render: render-mode dropdown (default hybrid), python-path text field (default `python3`), script-path text field (default `resources/scripts/python_single/render_cache.py`), re-render-on-save toggle (default ON), spawn-through-login-shell toggle (default ON).
 
 3. **Verify python spawns work BEFORE running heavy commands.** Open `kn/math/concepts/_RENDER_TEST_d2.md` (already renders correctly under Phase 8). Run command "Refresh all blocks in this note" via Cmd+P. Watch for a Notice "Refreshing all blocks in kn/…/_RENDER_TEST_d2.md…" then "Refreshed: …". If you see "Failed to spawn python: …" or "render_cache.py exited 1", the macOS PATH issue triggered (D9.3) — open Settings, set Python path to your conda Python (e.g., `/opt/homebrew/Caskroom/miniconda/base/bin/python3`), save, retry. If the second attempt also fails, surface the exact error here for triage.
 
@@ -427,11 +427,11 @@ Phase 9 introduces 7 NEW commands and a settings tab. The user gate is more intr
 
 5. **AC9.4 — Show cache status.** Run "Show cache status". Modal opens with: total blocks (~169 across the vault), total disk size (~9 MiB), per-language table (tikz mostly, then d2/graphviz/lilypond/smiles). Verify the numbers roughly match `ls -la attachments/cache/tikz/*.svg | wc -l` and disk usage from Finder.
 
-6. **AC9.6 — Toggle render mode.** Run "Toggle render mode (hybrid → cache-only → live)". Notice reads `Render mode: cache-only`. Run again → `Render mode: live`. Run again → `Render mode: hybrid`. Open Settings → Render Cache and verify the dropdown reflects the current mode.
+6. **AC9.6 — Toggle render mode.** Run "Toggle render mode (hybrid → cache-only → live)". Notice reads `Render mode: cache-only`. Run again → `Render mode: live`. Run again → `Render mode: hybrid`. Open Settings → Visual Blocks and verify the dropdown reflects the current mode.
 
 7. **AC9.5 — Sweep orphans.** Important: `render_cache.py --sweep` parses cache filenames against the canonical regex `^(.+)__(\d+)__([0-9a-f]{8,})\.svg$` (verified at `render_cache/__init__.py:196`); files NOT matching the regex print "[?] unparseable cache name, leaving" and are skipped. Therefore an arbitrary stray name like `_orphan_test.svg` would NOT be deleted. To produce a sweep-eligible orphan, create a name that matches the regex but doesn't correspond to any actual block: `cp attachments/cache/tikz/_RENDER_TEST_d2__1__7d8f25d74720ebf0.svg attachments/cache/tikz/_FAKE_NOTE__9__deadbeefdeadbeef.svg`. The stem `_FAKE_NOTE` doesn't match any markdown file → sweep prints "[-] no source for …" and deletes it. Run "Sweep orphan cache files". Notice "Sweep complete.". Confirm `_FAKE_NOTE__9__deadbeefdeadbeef.svg` is gone; real cache files (e.g., `_RENDER_TEST_d2__1__…`) still present.
 
-8. **AC9.10 — triggerOnSave.** With mode=hybrid (default), open `kn/math/concepts/mSB3-4_reals.md`. Edit the TikZ source slightly (e.g., add a comment line). Save (Cmd+S). Wait 5-10 seconds. The cache file's mtime should update. Reload the note (Cmd+R) — the diagram should render the new content. If you don't see an mtime update in 10s, surface the issue (likely a console.warn in DevTools: "render-cache: triggerOnSave on … exited N").
+8. **AC9.10 — triggerOnSave.** With mode=hybrid (default), open `kn/math/concepts/mSB3-4_reals.md`. Edit the TikZ source slightly (e.g., add a comment line). Save (Cmd+S). Wait 5-10 seconds. The cache file's mtime should update. Reload the note (Cmd+R) — the diagram should render the new content. If you don't see an mtime update in 10s, surface the issue (likely a console.warn in DevTools: "visual-blocks: triggerOnSave on … exited N").
 
 9. **AC9.8 — Live mode re-render.** Set mode=live (toggle command 2× from hybrid OR via Settings dropdown). Reload `_RENDER_TEST_d2.md`. Watch the cache file mtime: it should refresh on every reload. Note (per D9.2 trade-off): the user sees the OLD cache momentarily until Python finishes — reload again after 5-10s to see the NEW one. Reset mode=hybrid afterward.
 
@@ -450,8 +450,8 @@ When all 13 steps pass (or any subset you have time for; mark partials in the re
 - 3 pre-existing TikZ source bugs (`bB3-18_neuroscience-101.md`, `mSB8-9_double-brackets.md`, `mSB3-8_euler-e.md`); separate-triage backlog. Surfaced for the 5th time during any `--all` operation in Phase 9 user gate (steps 3, 8, 9, 12 all touch them).
 - **D6.7 fence-tag REGISTRY-derive refactor — deferred a 5th time** → queued for Phase 10 lead-in (Python-side commit; Phase 10 already touches python_single/render_cache for error capture surface).
 - **D7.9 implicit-default-fill rule** stays deferred (depends on `<img>` vs inline-svg SPEC amendment; no movement).
-- **`.obsidian/community-plugins.json` post-Phase-8-toggle health check** — Phase 8 closure noted that `obsidian-render-cache` should now appear in the file (since it was enabled at startup). Confirm at any next session that the file lists the expected ~6 entries (5 prior + render-cache).
-- **iOS Web Crypto contingency** unchanged from Phase 8 (still using `crypto.subtle.digest`; if Phase 11 surfaces "render-cache: tikz block failed" on iOS for every block, swap to js-sha256).
+- **`.obsidian/community-plugins.json` post-Phase-8-toggle health check** — Phase 8 closure noted that `visual-blocks` should now appear in the file (since it was enabled at startup). Confirm at any next session that the file lists the expected ~6 entries (5 prior + visual-blocks).
+- **iOS Web Crypto contingency** unchanged from Phase 8 (still using `crypto.subtle.digest`; if Phase 11 surfaces "visual-blocks: tikz block failed" on iOS for every block, swap to js-sha256).
 - **Live-mode hot-swap (D9.2 v1.1 candidate)** — file-watch on `index.json` to auto-reload views when entries update would replace the manual reload-after-5-10s UX.
 
 ---
@@ -462,18 +462,18 @@ When all 13 steps pass (or any subset you have time for; mark partials in the re
 
 **Completed:**
 
-- **Plugin scaffold at `.obsidian/plugins/obsidian-render-cache/`** — manifest.json (id, name, version 0.1.0, minAppVersion 1.4.16, isDesktopOnly false), package.json (esbuild + jest + ts-jest + obsidian dev deps), tsconfig.json (ES2022 target, strict null checks), esbuild.config.mjs (production-mode CJS bundle, sourcemap=false), jest.config.cjs (ts-jest preset, node env, obsidian module mock), styles.css (plugin display + wikilink-hide + codeblock-wrapper override). 295 npm packages installed (zero high-severity vulns).
+- **Plugin scaffold at `.obsidian/plugins/visual-blocks/`** — manifest.json (id, name, version 0.1.0, minAppVersion 1.4.16, isDesktopOnly false), package.json (esbuild + jest + ts-jest + obsidian dev deps), tsconfig.json (ES2022 target, strict null checks), esbuild.config.mjs (production-mode CJS bundle, sourcemap=false), jest.config.cjs (ts-jest preset, node env, obsidian module mock), styles.css (plugin display + wikilink-hide + codeblock-wrapper override). 295 npm packages installed (zero high-severity vulns).
 - **Hash port** — `src/hash.ts` (~140 lines). Three exported functions:
   - `normalize(source: string): string` — byte-identical to Python's `render_cache.normalize.normalize`. CRLF→LF, lone-CR→LF, per-line `.trim()` (BOTH ends; PLAN's `trimEnd()` would diverge — see fixture `per_line_whitespace_strip`), blank-line-run collapse, leading/trailing blank strip.
   - `pythonJsonDumps(value: unknown): string` — replicates Python's `json.dumps(sort_keys=True)` default separators `(', ', ': ')` byte-for-byte. JS's native `JSON.stringify` uses `(',', ':')` (no spaces) — would diverge the moment attrs become non-empty in Phase 9+. Recursive serializer handles strings (with `\uXXXX` escape for non-ASCII per Python's `ensure_ascii=True` default), numbers, booleans, null, arrays, objects (keys sorted at every level).
   - `computeKey(source, language, attrs, preambleHash): Promise<string>` — async (`crypto.subtle.digest('SHA-256', ...)` is async; works in Obsidian renderer + iOS WKWebView + Node 18+). Builds the SPEC §3.9 payload: `normalize(source) + 0x00 + lang + 0x00 + pythonJsonDumps(attrs) + 0x00 + preambleHash`, hashes via SubtleCrypto, hex-encodes, truncates to 16 chars.
-- **Codeblock processors** — `src/main.ts` (~150 lines) registers processors for all five v1 languages (`tikz`, `graphviz`, `d2`, `lilypond`, `smiles`). Each processor calls `displayCachedBlock(source, lang, el, ctx)` inside a try/catch (advisor: "throw inside the processor callback can leave the codeblock unrendered or break the page; cheap insurance"). Empty source → no-op; empty `el`; create `.render-cache-block` wrapper. Read `index.json` once at `onload` into memory. Look up preambleHash via `index.preambleHashes["<adapter:LANG>"]` (advisor's #4 — already populated by Python pipeline; no hardcoded preambles in TS). Compute hash. Find the block entry by iterating `index.notes[ctx.sourcePath].blocks` for matching `sourceHash` (advisor: first-match-wins; identical-source duplicate blocks have identical SVG content so any match is correct). On hit + file-on-disk: emit `<img src="${app.vault.adapter.getResourcePath(entry.cachePath)}" alt="${lang}-cache" loading="lazy" class="render-cache-img">` per SPEC §3.4 step 3 + §3.6 step 4 + T7. On miss: typed placeholder, mobile reads "Open on desktop to render"; desktop is clickable and shows a Notice pointing the user to `render_cache.py` (Phase 9 wires the actual click-to-render).
-- **Wikilink/plugin coexistence** — Plugin's `styles.css` includes `img[alt~="tikz-cache"]:not(.render-cache-img) { display: none }`. Specificity (0,2,1) beats the legacy `.obsidian/snippets/tikz-cache.css` rule (0,1,1) regardless of load order, so plugin's display owns the page when enabled. Plugin's own images carry `class="render-cache-img"` and bypass the hide via `:not()`. Snippet remains untouched — when plugin is disabled, snippet's rules reassert (wikilinks visible, fallback works). Plugin also includes `body .block-language-{lang} { display: block }` for all 5 languages — defeats the snippet's `display: none` on `.block-language-tikz` (which would otherwise hide the codeblock processor's container, taking our rendered image down with it).
+- **Codeblock processors** — `src/main.ts` (~150 lines) registers processors for all five v1 languages (`tikz`, `graphviz`, `d2`, `lilypond`, `smiles`). Each processor calls `displayCachedBlock(source, lang, el, ctx)` inside a try/catch (advisor: "throw inside the processor callback can leave the codeblock unrendered or break the page; cheap insurance"). Empty source → no-op; empty `el`; create `.visual-blocks-block` wrapper. Read `index.json` once at `onload` into memory. Look up preambleHash via `index.preambleHashes["<adapter:LANG>"]` (advisor's #4 — already populated by Python pipeline; no hardcoded preambles in TS). Compute hash. Find the block entry by iterating `index.notes[ctx.sourcePath].blocks` for matching `sourceHash` (advisor: first-match-wins; identical-source duplicate blocks have identical SVG content so any match is correct). On hit + file-on-disk: emit `<img src="${app.vault.adapter.getResourcePath(entry.cachePath)}" alt="${lang}-cache" loading="lazy" class="visual-blocks-img">` per SPEC §3.4 step 3 + §3.6 step 4 + T7. On miss: typed placeholder, mobile reads "Open on desktop to render"; desktop is clickable and shows a Notice pointing the user to `render_cache.py` (Phase 9 wires the actual click-to-render).
+- **Wikilink/plugin coexistence** — Plugin's `styles.css` includes `img[alt~="tikz-cache"]:not(.visual-blocks-img) { display: none }`. Specificity (0,2,1) beats the legacy `.obsidian/snippets/tikz-cache.css` rule (0,1,1) regardless of load order, so plugin's display owns the page when enabled. Plugin's own images carry `class="visual-blocks-img"` and bypass the hide via `:not()`. Snippet remains untouched — when plugin is disabled, snippet's rules reassert (wikilinks visible, fallback works). Plugin also includes `body .block-language-{lang} { display: block }` for all 5 languages — defeats the snippet's `display: none` on `.block-language-tikz` (which would otherwise hide the codeblock processor's container, taking our rendered image down with it).
 - **Cross-language hash fixture file** — `tests/fixtures/hash_fixtures.json` (14 fixtures), generated by `resources/scripts/python_single/tests/generate_hash_fixtures.py`. Single source of truth. 14 fixtures cover: empty source, plain TikZ, TikZ-with-comments-NOT-stripped (verifies normalize's per-language docstring promise; current Python passes raw source to `compute_key`), CRLF, lone CR, multi-blank-line collapse, leading/trailing blank strip, per-line full-strip (anti-`trimEnd()` guard), Unicode source, language-distinguishes-hash, preamble-change-invalidates, attrs={} baseline, attrs={"k":"v"} (Python-JSON-spaces guard for Phase 9+), attrs multi-key sorted.
 - **TDD red-then-green explicit** — Wrote `tests/hash.test.ts` with 24 assertions BEFORE any TS code. Initial `npm test`: collection error (`Cannot find module '../src/hash'`) → wrote `src/hash.ts` → all 24 jest tests pass (5 normalize + 4 pythonJsonDumps + 1 fixture-count guard + 14 per-fixture byte-identity). Same red-green pattern as D3.5 / D4.6 / D5.7 / D6.6 / D7.7.
 - **Python-side fixture self-test** — `tests/test_hash_fixtures.py` (18 assertions). Re-derives every fixture's expected key in Python, asserts equality. Plus three pinning tests: per-line-strip-not-trimEnd guard, attrs-single-key-Python-spacing guard, hash-collision-where-expected (CRLF and lone-CR canonicalize to LF → identical hash).
 - **Production round-trip on real cache** — Used Python `find_blocks` + `compute_key` against `_RENDER_TEST_d2.md` (3 D2 blocks). All 3 computed hashes equal the `sourceHash` field in `index.json`. The fixture-test discipline maps to actual production data.
-- **Build** — `npm run build` (esbuild production CJS bundle) → `main.js` 4.5KB minified. Bundle externs: obsidian, electron, all CodeMirror packages, Node builtins. Installs cleanly into `.obsidian/plugins/obsidian-render-cache/`.
+- **Build** — `npm run build` (esbuild production CJS bundle) → `main.js` 4.5KB minified. Bundle externs: obsidian, electron, all CodeMirror packages, Node builtins. Installs cleanly into `.obsidian/plugins/visual-blocks/`.
 
 **Decisions Made (D8.x):**
 
@@ -483,8 +483,8 @@ When all 13 steps pass (or any subset you have time for; mark partials in the re
 - **D8.4 — `pythonJsonDumps` helper (Python `json.dumps(sort_keys=True)` defaults, including spaces).** Empirically confirmed: `python3 -c "import json; print(repr(json.dumps({'k':'v'}, sort_keys=True)))"` → `'{"k": "v"}'` (with space). JS `JSON.stringify({"k":"v"})` → `'{"k":"v"}'` (no space). Today all attrs are `{}` so both produce `'{}'` and the divergence is invisible. Phase 9+ may introduce non-empty attrs (per-block render hints, theme colour overrides, etc.); the helper is in place so the byte-identity contract holds across that boundary. Fixture `attrs_single_key_PYTHON_JSON_SPACES` is the executable proof.
 - **D8.5 — Preamble hash sourced from `index.preambleHashes["<adapter:LANG>"]` (NOT hardcoded in TS).** Advisor: "Read from `index.preambleHashes`. The map already exists with all 5 languages populated. If absent → treat as cache miss." Cleanest separation: Python owns the preamble (knows the actual TikZ preamble text), plugin only consumes the digest. If Python ever changes the preamble (e.g., adding a new TikZ package), the index.json's preambleHash regenerates and plugin auto-picks up the new value with no TS code change.
 - **D8.6 — Block ordinal NOT used; lookup by `sourceHash` only.** Advisor: "MarkdownPostProcessorContext doesn't tell you the block ordinal. Don't try to scan source for ordinal — that's fragile. Instead: compute the hash, then iterate `index.notes[sourcePath].blocks` looking for matching `sourceHash`. First match wins. Robust to block reordering, identical-source duplicates, etc." Implemented exactly as advised.
-- **D8.7 — Wikilink coexistence via plugin styles.css with `:not(.render-cache-img)` exception (advisor's Option A).** Plugin owns the display when enabled; the snippet is untouched and reasserts when plugin disabled. CSS specificity (plugin's (0,2,1) > snippet's (0,1,1)) makes load-order irrelevant. The "user-visible flip" the advisor flagged: under Phase 7 the user saw [codeblock + wikilink image]; under Phase 8 they see [plugin image only] (codeblock is replaced by codeblock processor; wikilink is hidden by plugin CSS). Visually equivalent on cache hits; cache misses now show a typed placeholder where Phase 7 showed nothing.
-- **D8.8 — `.gitignore` carve-out for THIS plugin only.** Vault gitignore had `/.obsidian/plugins` excluding all 56 plugin directories (third-party installs). Phase 8 plugin source MUST be versioned. Solution: `!/.obsidian/plugins/`, `/.obsidian/plugins/*`, `!/.obsidian/plugins/obsidian-render-cache/` — un-excludes only this plugin's tree. Inner `.obsidian/plugins/obsidian-render-cache/.gitignore` then re-excludes `node_modules/`, `package-lock.json`. `main.js` IS committed (it is the build artifact users execute; same convention as upstream Obsidian plugin repos). Verified via `git check-ignore`: TikZJax's main.js stays ignored; render-cache's main.js is tracked.
+- **D8.7 — Wikilink coexistence via plugin styles.css with `:not(.visual-blocks-img)` exception (advisor's Option A).** Plugin owns the display when enabled; the snippet is untouched and reasserts when plugin disabled. CSS specificity (plugin's (0,2,1) > snippet's (0,1,1)) makes load-order irrelevant. The "user-visible flip" the advisor flagged: under Phase 7 the user saw [codeblock + wikilink image]; under Phase 8 they see [plugin image only] (codeblock is replaced by codeblock processor; wikilink is hidden by plugin CSS). Visually equivalent on cache hits; cache misses now show a typed placeholder where Phase 7 showed nothing.
+- **D8.8 — `.gitignore` carve-out for THIS plugin only.** Vault gitignore had `/.obsidian/plugins` excluding all 56 plugin directories (third-party installs). Phase 8 plugin source MUST be versioned. Solution: `!/.obsidian/plugins/`, `/.obsidian/plugins/*`, `!/.obsidian/plugins/visual-blocks/` — un-excludes only this plugin's tree. Inner `.obsidian/plugins/visual-blocks/.gitignore` then re-excludes `node_modules/`, `package-lock.json`. `main.js` IS committed (it is the build artifact users execute; same convention as upstream Obsidian plugin repos). Verified via `git check-ignore`: TikZJax's main.js stays ignored; visual-blocks's main.js is tracked.
 - **D8.9 — AC8.5 click-to-render is a placeholder + Notice in Phase 8; real wiring is Phase 9.** Advisor: "Don't try to wire a real render trigger in Phase 8 — that's Phase 9's surface and bundling produces a fat commit." Click handler shows a Notice telling the user to either run `render_cache.py` manually or wait for Phase 9's "Refresh this block" command. The placeholder IS clickable (AC8.5 surface met); the click outcome is a typed message (Phase 9 will replace).
 - **D8.10 — TDD red-then-green explicit.** Same pattern as D3.5 / D4.6 / D5.7 / D6.6 / D7.7. Test file written first; pytest jest red phase produced the expected `Cannot find module` error → wrote `src/hash.ts` → 24/24 jest green. Python self-test (`tests/test_hash_fixtures.py`) red was implicit because the fixture file didn't exist initially — generator script created it; self-test then 18/18 green.
 
@@ -526,24 +526,24 @@ When all 13 steps pass (or any subset you have time for; mark partials in the re
 
 **Phase 8 gate (user-driven, per SPEC §11.4):**
 
-1. **Enable the plugin.** Open Obsidian → Settings → Community plugins. The "Render Cache" plugin should appear in the installed-plugins list (Obsidian discovers `.obsidian/plugins/obsidian-render-cache/manifest.json`). Toggle it ON. **Verify TikZJax is OFF** (Settings → Community plugins → TikZJax). Per this session's investigation, TikZJax is not in any `loadAtStartup=True` group, so it should already be off — but if you manually enabled it at any point, disable it now to avoid a codeblock-processor race on the `tikz` fence.
-2. **AC8.1 — No console errors.** Cmd+Opt+I → Console tab. Reload the plugin. Look for any red `Render Cache: …` or stack trace. Plain text logs (`obsidian-render-cache: loaded; processors registered for …`) are expected.
+1. **Enable the plugin.** Open Obsidian → Settings → Community plugins. The "Visual Blocks" plugin should appear in the installed-plugins list (Obsidian discovers `.obsidian/plugins/visual-blocks/manifest.json`). Toggle it ON. **Verify TikZJax is OFF** (Settings → Community plugins → TikZJax). Per this session's investigation, TikZJax is not in any `loadAtStartup=True` group, so it should already be off — but if you manually enabled it at any point, disable it now to avoid a codeblock-processor race on the `tikz` fence.
+2. **AC8.1 — No console errors.** Cmd+Opt+I → Console tab. Reload the plugin. Look for any red `Visual Blocks: …` or stack trace. Plain text logs (`visual-blocks: loaded; processors registered for …`) are expected.
 3. **AC8.2 — Cached TikZ block displays inline (in BOTH rendered modes).** Open `kn/math/concepts/mSB3-4_reals.md` in reading mode (Cmd+E to toggle). The TikZ number-line diagram should appear EXACTLY ONCE (plugin emits `<img>`; legacy wikilink is hidden by plugin CSS). Compare to Phase 7 reading mode where you saw "codeblock + wikilink image" stacked — that should be replaced by a single image now. Then toggle to **live preview** (the rendered-edit mode, NOT raw source). The codeblock processor fires in live preview too — diagram should appear there as well. If it does NOT appear in live preview, surface that here (Phase 9 lead-in).
 4. **AC8.3 — Uncached TikZ block shows placeholder.** Open `kn/math/concepts/_RENDER_TEST_d2.md`, paste a brand-new D2 block (e.g., ```d2\nx -> y\n```) somewhere ABOVE the existing 3 blocks (don't run `render_cache.py`). Reading mode should show the existing 3 cached SVGs PLUS a typed placeholder reading "d2: Cache miss — click here for help (Phase 9 will wire click-to-render)." for the new block.
 5. **AC8.4 — Mobile placeholder reads "Open on desktop".** After iCloud sync, open the same file with the new uncached block on iOS. Placeholder should read "d2: Cache miss — open on desktop to render." (no click affordance).
 6. **AC8.5 — Desktop placeholder is clickable.** Click the placeholder from step 4. A Notice should pop up in the bottom-right corner: "Phase 8 placeholder. To render, run: python3 resources/scripts/python_single/render_cache.py <FILE.md>. Phase 9 will add a 'Refresh this block' command."
 7. **AC8.7 — Source mode unchanged.** With any of these files open, hit Cmd+E to toggle source mode. The raw markdown ```d2\n…\n``` codeblocks should be visible exactly as authored. Switch back (Cmd+E again) to reading mode — codeblocks vanish, replaced by plugin images.
-8. **Cleanup after gate.** Remove the experimental ```d2\nx -> y\n``` block you added in step 4 (or run `python3 resources/scripts/python_single/render_cache.py kn/math/concepts/_RENDER_TEST_d2.md` on the file to render it properly). **Important:** Phase 8 reads `index.json` once at `onload`; after running `render_cache.py`, reload the plugin (Settings → Community plugins → Render Cache → toggle OFF, then back ON) so the new entry is picked up. Phase 9 will add live-watching of the index file so this manual reload becomes unnecessary.
+8. **Cleanup after gate.** Remove the experimental ```d2\nx -> y\n``` block you added in step 4 (or run `python3 resources/scripts/python_single/render_cache.py kn/math/concepts/_RENDER_TEST_d2.md` on the file to render it properly). **Important:** Phase 8 reads `index.json` once at `onload`; after running `render_cache.py`, reload the plugin (Settings → Community plugins → Visual Blocks → toggle OFF, then back ON) so the new entry is picked up. Phase 9 will add live-watching of the index file so this manual reload becomes unnecessary.
 
 When confirmed, reply: **"Implement Phase 9"** → Plugin commands and modes (refresh-block / refresh-note / refresh-vault / show-status / sweep / toggle-mode / clear-all; mode cycling; mobile auto-override; triggerOnSave). Phase 9 replaces D8.9's placeholder click with real render-trigger wiring.
 
 **Outstanding (NOT blocking Phase 9 — flagged across phases):**
 
 - 3 pre-existing TikZ source bugs (`bB3-18_neuroscience-101.md`, `mSB8-9_double-brackets.md`, `mSB3-8_euler-e.md`). Separate-triage backlog. Surfaced for the 4th time in Phase 7's `--all --force` run.
-- `.obsidian/community-plugins.json` anomaly — only 5 entries (`ai-note-suggestion`, `obsidian-plugin-groups`, `claude-sidebar`, `obsidian-advanced-uri`, `calendar`) despite vault using ~136 plugins. Investigation this session: `obsidian-plugin-groups` has 36 groups managing 137 plugins, with no group's `loadAtStartup=True` for non-empty plugin lists. Fly TikZJax is in 3 groups, none auto-loaded. Mechanism is probably: user enables plugins manually via the plugin-groups palette command; `community-plugins.json` reflects only the 5 plugins enabled at Obsidian startup. Phase 8 verification needed: after the user toggles "Render Cache" ON in Settings, `community-plugins.json` should grow by 1 entry — confirmation that the system is healthy, not broken.
+- `.obsidian/community-plugins.json` anomaly — only 5 entries (`ai-note-suggestion`, `obsidian-plugin-groups`, `claude-sidebar`, `obsidian-advanced-uri`, `calendar`) despite vault using ~136 plugins. Investigation this session: `obsidian-plugin-groups` has 36 groups managing 137 plugins, with no group's `loadAtStartup=True` for non-empty plugin lists. Fly TikZJax is in 3 groups, none auto-loaded. Mechanism is probably: user enables plugins manually via the plugin-groups palette command; `community-plugins.json` reflects only the 5 plugins enabled at Obsidian startup. Phase 8 verification needed: after the user toggles "Visual Blocks" ON in Settings, `community-plugins.json` should grow by 1 entry — confirmation that the system is healthy, not broken.
 - D6.7 fence-tag REGISTRY-derive refactor deferred a 4th time → queued for Phase 9 lead-in (Phase 9 doesn't touch the dispatcher's fence-tag list, clean lead-in moment).
 - D7.9 implicit-default-fill rule (4th SVG hardening rule) explicitly NOT shipped because AC7.5 stays structurally blocked under D8.2's `<img>` choice. Re-evaluate at Phase 12 / SPEC v1.1 if the user later wants inline-SVG and dark-mode-follow.
-- **iOS Web Crypto contingency.** The TS plugin uses `crypto.subtle.digest('SHA-256', ...)` which is async + standardised across modern WebKit (iOS ≥ 11). Agent-side cannot verify on iOS WKWebView; if Phase 11 surfaces "render-cache: tikz block failed — …" for every block, the fallback is to swap to `js-sha256` (sync, no Web Crypto dependency, ~15 KB to bundle). No code change needed now; this is the documented remediation path.
+- **iOS Web Crypto contingency.** The TS plugin uses `crypto.subtle.digest('SHA-256', ...)` which is async + standardised across modern WebKit (iOS ≥ 11). Agent-side cannot verify on iOS WKWebView; if Phase 11 surfaces "visual-blocks: tikz block failed — …" for every block, the fallback is to swap to `js-sha256` (sync, no Web Crypto dependency, ~15 KB to bundle). No code change needed now; this is the documented remediation path.
 - **PROGRESS.md is approaching ~1300 lines.** Spine threshold is 500. Not blocking Phase 9 directly, but the Phase 9 lead-in is the natural archive moment: move Phase 1-6 entries to `PROGRESS_ARCHIVE.md`, keep Phase 7 + 8 + table + recovery in PROGRESS.md. Multiple items already queued for "Phase 9 lead-in" (D6.7 fence-tag refactor, D7.9 implicit-fill rule contingency, this archive, optionally a `community-plugins.json` post-toggle health check). **Done 2026-04-28** — see Phase 8 Gate Closure below; archive landed in this lead-in commit.
 
 **Phase 8 user-gate closure (recorded here for atomicity, 2026-04-28):**
@@ -553,10 +553,10 @@ User confirmed all 8 verification steps from the Phase 8 gate procedure pass. Ve
 - **Step 1 — plugin enabled, TikZJax off:** confirmed.
 - **Step 2 — AC8.1 (no console errors):** confirmed. Console log read literally:
   ```
-  obsidian-render-cache: loaded; processors registered for tikz, graphviz, d2, lilypond, smiles
+  visual-blocks: loaded; processors registered for tikz, graphviz, d2, lilypond, smiles
   ```
-  Unrelated MathJax font warnings (`Slow network detected … fallback font … MathJax_Zero.woff` etc.) appeared in the same console session — these are MathJax loading WOFF assets over the user's slow network and are completely independent of the render-cache plugin (no `obsidian-render-cache:` prefix; emitted from `index.html:1`, not from `main.js`). Filed for awareness, not as a Phase 8 regression.
-- **Step 3 — AC8.2 (cached display in reading + live preview):** confirmed indirectly. The user's step-4 observation ("Got: `d2: Cache miss — click here for help (Phase 9 will wire click-to-render).`") was made on `_RENDER_TEST_d2.md` after pasting one new ` ```d2 ` block ABOVE the existing 3 blocks. For the placeholder to appear in isolation (rather than stacked with leftover wikilink images), the codeblock processor must be replacing each existing cached block with a single `<img class="render-cache-img">` AND the plugin's `:not(.render-cache-img)` CSS rule must be hiding the legacy wikilink-rendered images. Both behaviors are AC8.2 territory. Direct "appears in BOTH reading mode and live preview" was not separately reported, but live-preview support is structurally guaranteed by Obsidian's `registerMarkdownCodeBlockProcessor` contract (processors fire in both rendered modes by construction).
+  Unrelated MathJax font warnings (`Slow network detected … fallback font … MathJax_Zero.woff` etc.) appeared in the same console session — these are MathJax loading WOFF assets over the user's slow network and are completely independent of the visual-blocks plugin (no `visual-blocks:` prefix; emitted from `index.html:1`, not from `main.js`). Filed for awareness, not as a Phase 8 regression.
+- **Step 3 — AC8.2 (cached display in reading + live preview):** confirmed indirectly. The user's step-4 observation ("Got: `d2: Cache miss — click here for help (Phase 9 will wire click-to-render).`") was made on `_RENDER_TEST_d2.md` after pasting one new ` ```d2 ` block ABOVE the existing 3 blocks. For the placeholder to appear in isolation (rather than stacked with leftover wikilink images), the codeblock processor must be replacing each existing cached block with a single `<img class="visual-blocks-img">` AND the plugin's `:not(.visual-blocks-img)` CSS rule must be hiding the legacy wikilink-rendered images. Both behaviors are AC8.2 territory. Direct "appears in BOTH reading mode and live preview" was not separately reported, but live-preview support is structurally guaranteed by Obsidian's `registerMarkdownCodeBlockProcessor` contract (processors fire in both rendered modes by construction).
 - **Step 4 — AC8.3 (uncached placeholder):** confirmed. Pasted ` ```d2 ` source (multi-line nested-cluster D2 graph) yielded the expected typed placeholder text exactly: `d2: Cache miss — click here for help (Phase 9 will wire click-to-render).`
 - **Step 5 — AC8.4 (mobile placeholder text):** confirmed. iOS reads: `d2: Cache miss — open on desktop to render.` (no click affordance).
 - **Step 6 — AC8.5 (clickable placeholder → Notice):** confirmed. Notice text rendered exactly as designed:
@@ -693,7 +693,7 @@ When AC7.4 confirmed, reply: **"Implement Phase 8"** → Plugin scaffold (Node.j
 
 **Decisions Made:**
 
-- **D6.1 — Wikilink alt-tag stays `tikz-cache` for SMILES too.** Reaffirms D3.1 / D4.1 / D5.1. Per SPEC OQ9 the rename to `render-cache` is deferred to Phase 12 migration. Using a different alt-tag for smiles now would split the migration work without UI benefit (Phase 8 plugin handles display anyway, and CSS hides `.block-language-tikz` only — adding hides for the other languages also lands at Phase 8).
+- **D6.1 — Wikilink alt-tag stays `tikz-cache` for SMILES too.** Reaffirms D3.1 / D4.1 / D5.1. Per SPEC OQ9 the rename to `visual-blocks` is deferred to Phase 12 migration. Using a different alt-tag for smiles now would split the migration work without UI benefit (Phase 8 plugin handles display anyway, and CSS hides `.block-language-tikz` only — adding hides for the other languages also lands at Phase 8).
 - **D6.2 — `SMILESAdapter.preamble_text` returns `""`.** Reaffirms D3.2 / D4.2 / D5.2. SMILES strings are self-contained one-liners; no preamble concept. Per-folder default-image-size or atom-numbering overrides are a Phase 8+ concern, not v1.
 - **D6.3 — `render_budget_seconds = 5`.** PLAN was silent on the value. Smoke-tested at **2.6 ms** for caffeine — pure-Python rdkit calls, no subprocess wait, no compile step. 5 s gives ~2000× headroom while still catching pathological hangs on very large polymer SMILES (the budget is declarative; pure-Python adapters can't easily enforce timeouts via signal/threading, but the budget is recorded for billing-style telemetry per SPEC §3.4). `SMILES_TIMEOUT_S = 5` constant in the adapter for symmetry with `D2_TIMEOUT_S` / `LILYPOND_TIMEOUT_S` etc.
 - **D6.4 — Drawer dimensions: 400×300 default.** PLAN was silent. RDKit's `MolDraw2DSVG(width_px, height_px)` requires explicit dimensions. 400×300 mirrors typical Obsidian inline-figure aspect ratio (4:3) and produces readable atom labels at desktop reading-mode scale. Per-block override via fence attributes is deferred to OQ10 (per-block fence attrs).

@@ -1,5 +1,5 @@
 /**
- * obsidian-render-cache — Phase 9 subprocess wrapper.
+ * visual-blocks — Phase 9 subprocess wrapper.
  *
  * The Phase 9 commands (refresh-block, refresh-note, refresh-vault, sweep,
  * triggerOnSave) need to invoke `python3 render_cache.py …` from the

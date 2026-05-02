@@ -1,23 +1,24 @@
-/* obsidian-render-cache — view styles for cached SVG blocks and placeholders.
+/* visual-blocks — view styles for cached SVG blocks and placeholders.
  *
  * Wikilink-vs-plugin coexistence:
- *   The author-time pipeline inserts ![[…|render-cache]] wikilinks
+ *   The author-time pipeline inserts ![[…|visual-blocks]] wikilinks
  *   in the markdown after each rendered block. Obsidian renders those as
- *   <img alt="render-cache" …>. Once this plugin is active, its codeblock
- *   processor produces its own <img class="render-cache-img" alt="<lang>-cache">.
+ *   <img alt="visual-blocks" …>. Once this plugin is active, its codeblock
+ *   processor produces its own <img class="visual-blocks-img" alt="<lang>-cache">.
  *   Without the rule below the user would see two stacked images. The
  *   :not() selector hides the wikilink-rendered images while the higher-
- *   specificity .render-cache-img rule keeps the plugin's images visible.
+ *   specificity .visual-blocks-img rule keeps the plugin's images visible.
  *
- *   Specificity: img[alt~="tikz-cache"]:not(.render-cache-img) is (0,2,1)
+ *   Specificity: img[alt~="tikz-cache"]:not(.visual-blocks-img) is (0,2,1)
  *   which beats the legacy .obsidian/snippets/tikz-cache.css rule
  *   (img[alt~="tikz-cache"], (0,1,1)) regardless of load order, so the
  *   plugin's display owns the page when enabled, and the snippet's rules
  *   reassert when the plugin is disabled.
  */
 
-img[alt~="tikz-cache"]:not(.render-cache-img),
-img[alt~="render-cache"]:not(.render-cache-img) {
+img[alt~="tikz-cache"]:not(.visual-blocks-img),
+img[alt~="render-cache"]:not(.visual-blocks-img),
+img[alt~="visual-blocks"]:not(.visual-blocks-img) {
     display: none;
 }
 
@@ -34,18 +35,18 @@ body .block-language-smiles {
     display: block;
 }
 
-.render-cache-block {
+.visual-blocks-block {
     text-align: center;
     margin: 1em auto;
 }
 
-.render-cache-block img {
+.visual-blocks-block img {
     max-width: 100%;
     height: auto;
     display: inline-block;
 }
 
-.render-cache-placeholder {
+.visual-blocks-placeholder {
     border: 1px dashed var(--background-modifier-border);
     border-radius: 6px;
     padding: 1em 1.25em;
@@ -58,20 +59,20 @@ body .block-language-smiles {
     white-space: pre-wrap;
 }
 
-.render-cache-placeholder.is-clickable {
+.visual-blocks-placeholder.is-clickable {
     cursor: pointer;
 }
 
-.render-cache-placeholder.is-clickable:hover {
+.visual-blocks-placeholder.is-clickable:hover {
     background: var(--background-modifier-hover);
 }
 
-.render-cache-placeholder .render-cache-lang {
+.visual-blocks-placeholder .visual-blocks-lang {
     color: var(--text-accent);
     font-weight: 600;
 }
 
-.render-cache-error {
+.visual-blocks-error {
     border-left: 3px solid var(--text-error);
     padding-left: 0.75em;
     color: var(--text-error);
@@ -81,7 +82,7 @@ body .block-language-smiles {
     white-space: pre-wrap;
 }
 
-.render-cache-inline-error {
+.visual-blocks-inline-error {
     border: 1px solid var(--text-error);
     border-left-width: 4px;
     border-radius: 6px;
@@ -92,21 +93,21 @@ body .block-language-smiles {
     text-align: left;
 }
 
-.render-cache-inline-error.is-clickable {
+.visual-blocks-inline-error.is-clickable {
     cursor: pointer;
 }
 
-.render-cache-inline-error.is-clickable:hover {
+.visual-blocks-inline-error.is-clickable:hover {
     background: var(--background-modifier-hover);
 }
 
-.render-cache-error-title {
+.visual-blocks-error-title {
     color: var(--text-error);
     font-weight: 600;
     margin-bottom: 0.45em;
 }
 
-.render-cache-error-message {
+.visual-blocks-error-message {
     margin: 0;
     white-space: pre-wrap;
     font-size: 0.82em;
@@ -114,61 +115,61 @@ body .block-language-smiles {
     color: var(--text-error);
 }
 
-.render-cache-error-help {
+.visual-blocks-error-help {
     margin-top: 0.55em;
     color: var(--text-muted);
     font-size: 0.82em;
 }
 
-.render-cache-status-bar.has-error {
+.visual-blocks-status-bar.has-error {
     color: var(--text-error);
 }
 
-.render-cache-status-bar.is-rendering {
+.visual-blocks-status-bar.is-rendering {
     color: var(--text-accent);
 }
 
 /* Phase 9 — modals & status output. */
 
-.render-cache-btn-row {
+.visual-blocks-btn-row {
     display: flex;
     justify-content: flex-end;
     gap: 0.5em;
     margin-top: 1em;
 }
 
-.render-cache-table {
+.visual-blocks-table {
     border-collapse: collapse;
     margin: 0.75em 0;
     width: 100%;
 }
 
-.render-cache-table th,
-.render-cache-table td {
+.visual-blocks-table th,
+.visual-blocks-table td {
     border-bottom: 1px solid var(--background-modifier-border);
     padding: 0.4em 0.75em;
     text-align: left;
 }
 
-.render-cache-table th {
+.visual-blocks-table th {
     font-weight: 600;
     color: var(--text-muted);
 }
 
-.render-cache-summary p {
+.visual-blocks-summary p {
     margin: 0.4em 0;
 }
 
-.render-cache-summary .render-cache-meta {
+.visual-blocks-summary .visual-blocks-meta {
     color: var(--text-muted);
     font-size: 0.85em;
 }
 
-.render-cache-summary .render-cache-error-note {
+.visual-blocks-summary .visual-blocks-error-note {
     color: var(--text-error);
 }
 
-.render-cache-log {
+.visual-blocks-log {
     font-size: 0.8em;
     background: var(--background-secondary);
     padding: 0.6em;

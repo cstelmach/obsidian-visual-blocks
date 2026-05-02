@@ -1,5 +1,5 @@
 /**
- * obsidian-render-cache — Phase 9 settings + types.
+ * visual-blocks — Phase 9 settings + types.
  *
  * Settings are intentionally narrow:
  *   • mode            — view-time behaviour (hybrid / cache-only / live)
@@ -101,7 +101,7 @@ export class RenderCacheSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "Render Cache settings" });
+    containerEl.createEl("h2", { text: "Visual Blocks settings" });
 
     new Setting(containerEl)
       .setName("Render mode")

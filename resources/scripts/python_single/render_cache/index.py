@@ -3,7 +3,7 @@
 Phase 2 location: ``attachments/cache/tikz/index.json`` (legacy directory
 retained — see ``cache_paths.py`` and ``PLAN.md`` Phase 2 common-mistakes
 note). Phase 8 / Phase 12 migrate it to
-``.obsidian/plugins/obsidian-render-cache/cache/index.json``.
+``.obsidian/plugins/visual-blocks/cache/index.json``.
 
 The file is rewritten atomically via tempfile + rename so a crash mid-write
 cannot corrupt it.

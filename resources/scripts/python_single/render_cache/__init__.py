@@ -147,7 +147,7 @@ def process_file(md_path: Path, force: bool, dry_run: bool) -> int:
         if ok:
             block_end = block.span[1]
             new_ref_path = _vault_relative(svg_path)
-            new_ref = f"\n\n![[{new_ref_path}|render-cache]]"
+            new_ref = f"\n\n![[{new_ref_path}|visual-blocks]]"
             existing, ref_start, ref_end = find_existing_ref(content, block_end)
             if existing is None:
                 edits.append((block_end, block_end, new_ref))

@@ -56,7 +56,7 @@ def test_cache_path_for_rel_uses_plugin_v1_note_layout() -> None:
     )
 
     assert path.relative_to("/Users/cs/Obsidian/_").as_posix() == (
-        ".obsidian/plugins/obsidian-render-cache/cache/v1/"
+        ".obsidian/plugins/visual-blocks/cache/v1/"
         "kn/math/concepts/mSB3-4_reals/0__814d986af7c9302c.svg"
     )
 
@@ -91,7 +91,7 @@ def test_dry_run_reports_plan_without_filesystem_changes(tmp_path: Path) -> None
     assert summary.updated_markdown_files == 1
     assert note.read_text(encoding="utf-8") == before_note
     assert legacy_svg.read_text(encoding="utf-8") == before_svg
-    assert not (vault / ".obsidian/plugins/obsidian-render-cache/cache/index.json").exists()
+    assert not (vault / ".obsidian/plugins/visual-blocks/cache/index.json").exists()
 
 
 def test_real_run_moves_svg_updates_index_and_markdown(tmp_path: Path) -> None:
@@ -105,7 +105,7 @@ def test_real_run_moves_svg_updates_index_and_markdown(tmp_path: Path) -> None:
     legacy_svg = vault / legacy_ref
     key = "814d986af7c9302c"
     new_rel = (
-        ".obsidian/plugins/obsidian-render-cache/cache/v1/"
+        ".obsidian/plugins/visual-blocks/cache/v1/"
         "kn/math/concepts/mSB3-4_reals/0__814d986af7c9302c.svg"
     )
 
@@ -128,10 +128,10 @@ def test_real_run_moves_svg_updates_index_and_markdown(tmp_path: Path) -> None:
     assert (vault / new_rel).read_text(encoding="utf-8") == (
         "<svg viewBox='0 0 1 1'></svg>"
     )
-    assert f"![[{new_rel}|render-cache]]" in note.read_text(encoding="utf-8")
+    assert f"![[{new_rel}|visual-blocks]]" in note.read_text(encoding="utf-8")
 
     new_index = json.loads(
-        (vault / ".obsidian/plugins/obsidian-render-cache/cache/index.json").read_text(
+        (vault / ".obsidian/plugins/visual-blocks/cache/index.json").read_text(
             encoding="utf-8"
         )
     )
@@ -163,7 +163,7 @@ def test_absolute_temp_vault_index_entries_are_dropped(tmp_path: Path) -> None:
     assert summary.deleted_orphan_svgs == 1
     assert not legacy_svg.exists()
     new_index = json.loads(
-        (vault / ".obsidian/plugins/obsidian-render-cache/cache/index.json").read_text(
+        (vault / ".obsidian/plugins/visual-blocks/cache/index.json").read_text(
             encoding="utf-8"
         )
     )

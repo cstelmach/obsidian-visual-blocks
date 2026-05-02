@@ -1,5 +1,5 @@
 /**
- * obsidian-render-cache — Phase 9 cache status modal + pure aggregator.
+ * visual-blocks — Phase 9 cache status modal + pure aggregator.
  *
  * AC9.4: Run "Show cache status" → modal displays count, total disk size,
  * per-language breakdown.
@@ -151,9 +151,9 @@ export class CacheStatusModal extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.createEl("h2", { text: "Render Cache — status" });
+    contentEl.createEl("h2", { text: "Visual Blocks — status" });
 
-    const summary = contentEl.createEl("div", { cls: "render-cache-summary" });
+    const summary = contentEl.createEl("div", { cls: "visual-blocks-summary" });
     summary.createEl("p", {
       text:
         `${this.status.totalBlocks} block(s) cached across ` +
@@ -163,13 +163,13 @@ export class CacheStatusModal extends Modal {
     if (this.status.errorCount > 0) {
       summary.createEl("p", {
         text: `${this.status.errorCount} block(s) have a captured render error.`,
-        cls: "render-cache-error-note",
+        cls: "visual-blocks-error-note",
       });
     }
     if (this.status.rendererVersion) {
       summary.createEl("p", {
         text: `Renderer version: ${this.status.rendererVersion}, schema v${this.status.schemaVersion ?? "?"}`,
-        cls: "render-cache-meta",
+        cls: "visual-blocks-meta",
       });
     }
 
@@ -177,7 +177,7 @@ export class CacheStatusModal extends Modal {
     if (this.status.perLanguage.length === 0) {
       contentEl.createEl("p", { text: "(empty cache)" });
     } else {
-      const table = contentEl.createEl("table", { cls: "render-cache-table" });
+      const table = contentEl.createEl("table", { cls: "visual-blocks-table" });
       const head = table.createEl("tr");
       head.createEl("th", { text: "Language" });
       head.createEl("th", { text: "Blocks" });

@@ -1,10 +1,10 @@
-# Obsidian Render Cache — Specification
+# Obsidian Visual Blocks — Specification
 
 **Status:** Final
 **Created:** 2026-04-26
 **Last Updated:** 2026-04-27
 **Author:** Christian Stelmach
-**Slug:** `render-cache`
+**Slug:** `visual-blocks`
 **Predecessor:** `docs/specs/tikz-cache/` (TikZ-only PNG pipeline; superseded)
 **Companion plan:** `docs/specs/render-cache/PLAN.md` (per-task implementation detail)
 
@@ -39,7 +39,7 @@
 ## 1. Project Overview
 
 ### Name
-**Obsidian Render Cache.**
+**Obsidian Visual Blocks.**
 
 ### One-Paragraph Summary
 A render-at-save system for code-described visualizations in an Obsidian vault. A
@@ -168,7 +168,7 @@ flowchart TB
     end
 
     subgraph View [View-time — desktop or mobile]
-        OPEN[User opens note] --> PLUGIN[obsidian-render-cache plugin]
+        OPEN[User opens note] --> PLUGIN[visual-blocks plugin]
         PLUGIN --> CBP[CodeBlock processor for each lang]
         CBP --> H2[Compute hash from source]
         H2 --> IDX[Lookup in index.json]
@@ -193,9 +193,9 @@ flowchart TB
 | `render_cache.index` | Cache `index.json` reader/writer | `…/render_cache/index.py` | Phase 2 |
 | `render_cache.markdown_io` | Code-block extraction + image-ref insertion | `…/render_cache/markdown_io.py` | Phase 2 |
 | `tikz_cache.py` | Backward-compat shim (deprecation warning + forwards to render_cache.main) | `resources/scripts/python_single/tikz_cache.py` | Phase 2 |
-| `obsidian-render-cache` plugin | Reads cache, inlines SVGs, exposes commands | `.obsidian/plugins/obsidian-render-cache/` | Phases 8-10 |
+| `visual-blocks` plugin | Reads cache, inlines SVGs, exposes commands | `.obsidian/plugins/visual-blocks/` | Phases 8-10 |
 | `migrate_to_render_cache.py` | One-shot migration of legacy PNG cache | `resources/scripts/python_single/migrate_to_render_cache.py` | Phase 12 |
-| Cache directory | SVG storage + index | `.obsidian/plugins/obsidian-render-cache/cache/` | Created in Phase 8 |
+| Cache directory | SVG storage + index | `.obsidian/plugins/visual-blocks/cache/` | Created in Phase 8 |
 
 ### 3.4 Component Contracts
 
@@ -299,7 +299,7 @@ User saves .md → render_cache.py FILE.md →
     6. Apply post-processing rules (§3.7 T3, T4, T5)
     7. Move SVG to cache/v1/<note-path>/<idx>__<hash>.svg
     8. Update index.json
-    9. Insert/update `![[…|render-cache]]` reference in FILE.md (after the code block)
+    9. Insert/update `![[…|visual-blocks]]` reference in FILE.md (after the code block)
 ```
 
 ### 3.6 Data Flow — View-Time
@@ -345,7 +345,7 @@ in `PLAN.md`; what's here is enough to constrain the design.
 ### 3.8 Cache Directory Layout
 
 ```
-.obsidian/plugins/obsidian-render-cache/
+.obsidian/plugins/visual-blocks/
 ├── manifest.json
 ├── main.js                              ← plugin TypeScript bundle
 ├── styles.css
@@ -485,7 +485,7 @@ maintenance.
 **Question:** Where on disk should cached SVGs live?
 
 **Options Considered:**
-- **A.** `.obsidian/plugins/obsidian-render-cache/cache/` (plugin-managed)
+- **A.** `.obsidian/plugins/visual-blocks/cache/` (plugin-managed)
 - **B.** `attachments/cache/render/` (in-vault)
 - **C.** Hybrid (some in vault, some plugin-managed)
 
@@ -861,7 +861,7 @@ cache to apply rules. This phase is the foundation of iOS visual correctness.
 
 ### Phase 8: Plugin Scaffold
 
-**Scope:** Build `obsidian-render-cache` plugin from scratch. Registers codeblock
+**Scope:** Build `visual-blocks` plugin from scratch. Registers codeblock
 processors for all 5 v1 languages, computes the same hash as Python (T12), looks
 up the index, inlines cached SVGs via `getResourcePath()`. On miss, shows a
 platform-aware placeholder.
@@ -870,7 +870,7 @@ platform-aware placeholder.
 
 **Inputs:**
 - `index.json` populated by Python pipeline
-- Cached SVGs in `.obsidian/plugins/obsidian-render-cache/cache/v1/`
+- Cached SVGs in `.obsidian/plugins/visual-blocks/cache/v1/`
 - Obsidian Sample Plugin template as starting point
 
 **Outputs:**
@@ -1026,9 +1026,9 @@ CLAUDE.md update.
 **Inputs:** All implemented components.
 
 **Outputs:**
-- `.obsidian/plugins/obsidian-render-cache/README.md`
+- `.obsidian/plugins/visual-blocks/README.md`
 - `resources/scripts/python_single/render_cache/CLAUDE.md`
-- Update `CLAUDE.md` (vault root) with section pointing to render-cache as canonical TikZ pipeline
+- Update `CLAUDE.md` (vault root) with section pointing to visual-blocks as canonical TikZ pipeline
 - `docs/specs/render-cache/PROGRESS.md` final summary
 
 **Acceptance Criteria:**
@@ -1238,7 +1238,7 @@ isn't lost.
 | OQ6 | Cross-vault cache sharing | Single-user single-vault is the only target | Multi-user vault scenario |
 | OQ7 | Mobile-side WASM rendering as fallback | gboyd068 path; deferred unless v1 has unfixable gap | Phase 14 trigger |
 | OQ8 | First-class accessibility metadata in SVG (titles, descriptions) | Not v1 scope | Post-v1 polish |
-| OQ9 | Markdown ref alt-text: `tikz-cache` vs `render-cache` | Backward compat with existing CSS | Phase 12 |
+| OQ9 | Markdown ref alt-text: `tikz-cache` vs `visual-blocks` | Backward compat with existing CSS | Phase 12 |
 | OQ10 | SVGO post-processing tool integration | Adds Node dependency; v1 deferred | If SVG sizes become a sync problem |
 | OQ11 | `--diagnose` CLI subcommand for hash-trace debugging | Power-user feature; v1 logs are sufficient | First "why doesn't this cache hit?" support call |
 
@@ -1255,7 +1255,7 @@ isn't lost.
 | **Cache key** | 16-char SHA-256 hash of `normalize(source) + lang + attrs + preamble_hash` |
 | **Renderer-version namespace** | Top-level cache directory (e.g., `v1/`) that segregates caches per renderer release |
 | **80/20 whitelist** | The minimal set of languages that covers most plausible vault need (D05) |
-| **`obsidian-render-cache`** | The new plugin (§3.3) |
+| **`visual-blocks`** | The new plugin (§3.3) |
 | **`render_cache.py`** | The new Python entry point, evolution of `tikz_cache.py` |
 | **`index.json`** | Cache index file (§3.4) — fast lookup state for the plugin |
 | **AC** | Acceptance Criterion (e.g., AC1.2 = Phase 1 acceptance criterion 2) |
