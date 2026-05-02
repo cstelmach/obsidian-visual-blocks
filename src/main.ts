@@ -17,7 +17,7 @@
  * For each registered language the plugin:
  *   1. Computes the canonical 16-char SHA-256 cache key from the block
  *      source (see hash.ts; byte-identical to Python compute_key per T12).
- *   2. Looks up the entry in attachments/cache/tikz/index.json by
+ *   2. Looks up the entry in .obsidian/plugins/obsidian-render-cache/cache/index.json by
  *      sourceHash (advisor: first match wins; identical-source duplicates
  *      have identical cached SVGs).
  *   3. Mode-aware behavior:
@@ -61,7 +61,7 @@ import {
 const LANGUAGES = ["tikz", "graphviz", "d2", "lilypond", "smiles"] as const;
 type Lang = (typeof LANGUAGES)[number];
 
-const CACHE_ROOT = "attachments/cache/tikz";
+const CACHE_ROOT = ".obsidian/plugins/obsidian-render-cache/cache";
 const INDEX_PATH = `${CACHE_ROOT}/index.json`;
 
 interface BlockEntry {

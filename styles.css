@@ -1,9 +1,9 @@
 /* obsidian-render-cache — view styles for cached SVG blocks and placeholders.
  *
  * Wikilink-vs-plugin coexistence:
- *   The Phase 1 v2 author-time pipeline inserts ![[…|tikz-cache]] wikilinks
+ *   The author-time pipeline inserts ![[…|render-cache]] wikilinks
  *   in the markdown after each rendered block. Obsidian renders those as
- *   <img alt="tikz-cache" …>. Once this plugin is active, its codeblock
+ *   <img alt="render-cache" …>. Once this plugin is active, its codeblock
  *   processor produces its own <img class="render-cache-img" alt="<lang>-cache">.
  *   Without the rule below the user would see two stacked images. The
  *   :not() selector hides the wikilink-rendered images while the higher-
@@ -16,7 +16,8 @@
  *   reassert when the plugin is disabled.
  */
 
-img[alt~="tikz-cache"]:not(.render-cache-img) {
+img[alt~="tikz-cache"]:not(.render-cache-img),
+img[alt~="render-cache"]:not(.render-cache-img) {
     display: none;
 }
 

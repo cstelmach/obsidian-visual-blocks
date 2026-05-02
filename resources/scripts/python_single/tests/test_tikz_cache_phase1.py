@@ -32,7 +32,9 @@ import pytest
 ADAPTER = Path("/Users/cs/Obsidian/_/resources/scripts/python_single/render_cache/adapters/tikz.py")
 CLI = Path("/Users/cs/Obsidian/_/resources/scripts/python_single/render_cache.py")
 SMOKE_MD = Path("/Users/cs/Obsidian/_/kn/math/concepts/mSB3-4_reals.md")
-CACHE_DIR = Path("/Users/cs/Obsidian/_/attachments/cache/tikz")
+CACHE_DIR = Path(
+    "/Users/cs/Obsidian/_/.obsidian/plugins/obsidian-render-cache/cache/v1"
+)
 
 
 def _strip_docstrings_and_comments(source: str) -> str:
@@ -200,7 +202,8 @@ def test_smoke_render_produces_path_only_svg(tmp_path: Path) -> None:
         )
 
         # 1. SVG exists at expected path
-        svgs = sorted(CACHE_DIR.glob(f"{SMOKE_MD.stem}__1__*.svg"))
+        note_cache_dir = CACHE_DIR / "kn" / "math" / "concepts" / SMOKE_MD.stem
+        svgs = sorted(note_cache_dir.glob("0__*.svg"))
         assert len(svgs) == 1, f"Expected 1 SVG for {SMOKE_MD.stem}, got {svgs}"
         svg = svgs[0]
 
@@ -230,7 +233,9 @@ def test_smoke_render_produces_path_only_svg(tmp_path: Path) -> None:
         # hashes from Phase 1 are also tolerated for transition compatibility.
         new_md = SMOKE_MD.read_text(encoding="utf-8")
         ref_re = re.compile(
-            rf"!\[\[{re.escape(SMOKE_MD.stem)}__1__[0-9a-f]{{8,}}\.svg\|tikz-cache\]\]"
+            rf"!\[\[\.obsidian/plugins/obsidian-render-cache/cache/v1/"
+            rf"kn/math/concepts/{re.escape(SMOKE_MD.stem)}/"
+            rf"0__[0-9a-f]{{16}}\.svg\|render-cache\]\]"
         )
         assert ref_re.search(new_md), (
             f"Markdown ref not updated to .svg in {SMOKE_MD.name}"
@@ -240,7 +245,8 @@ def test_smoke_render_produces_path_only_svg(tmp_path: Path) -> None:
         # Best-effort restore if the script left the markdown in an inconsistent state.
         # (We intentionally do NOT restore on success — the .svg ref is the desired post-condition.)
         if SMOKE_MD.read_text(encoding="utf-8") != md_snapshot:
-            # Did the script update the ref correctly? Then keep changes. Else revert.
+            # The migration phase owns persistent markdown rewrites; this smoke
+            # test restores its fixture if an interrupted render leaves a bad ref.
             new_text = SMOKE_MD.read_text(encoding="utf-8")
-            if "tikz-cache" in new_text and ".svg|tikz-cache" not in new_text:
+            if "render-cache" not in new_text:
                 SMOKE_MD.write_text(md_snapshot, encoding="utf-8")

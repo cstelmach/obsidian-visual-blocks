@@ -117,8 +117,8 @@ export interface CommandContext {
   reloadIndex: () => Promise<void>;
   getIndex: () => IndexShape | null;
   setRendering?: (sourcePath: string, rendering: boolean) => void;
-  cacheRoot: string; // e.g., "attachments/cache/tikz"
-  indexPath: string; // e.g., "attachments/cache/tikz/index.json"
+  cacheRoot: string; // e.g., ".obsidian/plugins/obsidian-render-cache/cache"
+  indexPath: string; // e.g., ".obsidian/plugins/obsidian-render-cache/cache/index.json"
 }
 
 /** Register all 7 commands with the plugin's command palette. */
@@ -358,15 +358,15 @@ async function clearAll(ctx: CommandContext): Promise<void> {
   });
   if (!ok) return;
 
-  // Walk the cache directory and remove each file. We do NOT rmdir the
-  // top-level container because it is a vault-tracked path.
+  // Walk the cache directory recursively. Phase 12 moves SVGs under v1/<note>.
+  // We keep the top-level container directory so the plugin can recreate
+  // index.json cleanly on the next render.
   const adapter = ctx.app.vault.adapter;
   let removed = 0;
   let errors = 0;
   try {
-    const list = await adapter.list(ctx.cacheRoot);
-    // Remove the index file and SVGs at the cache root.
-    for (const f of list.files) {
+    const files = await listFilesRecursive(adapter, ctx.cacheRoot);
+    for (const f of files) {
       try {
         await adapter.remove(f);
         removed += 1;
@@ -374,9 +374,6 @@ async function clearAll(ctx: CommandContext): Promise<void> {
         errors += 1;
       }
     }
-    // We don't recurse into subdirs in Phase 9 because the current cache
-    // layout puts everything at the top level. Phase 12 will handle the
-    // nested layout when it ships.
   } catch (err) {
     new Notice(`Cache directory not found: ${ctx.cacheRoot}`, 4000);
     return;
@@ -387,6 +384,18 @@ async function clearAll(ctx: CommandContext): Promise<void> {
     5000,
   );
   await ctx.reloadIndex();
+}
+
+async function listFilesRecursive(
+  adapter: App["vault"]["adapter"],
+  root: string,
+): Promise<string[]> {
+  const list = await adapter.list(root);
+  const files = [...list.files];
+  for (const folder of list.folders) {
+    files.push(...await listFilesRecursive(adapter, folder));
+  }
+  return files;
 }
 
 // ─── Confirmation modal (used by refresh-vault + clear-all) ──────────────

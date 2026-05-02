@@ -50,12 +50,13 @@ def test_process_file_records_last_error_for_failed_render(
     cache_dir = tmp_path / "cache"
     index_path = cache_dir / "index.json"
 
-    def temp_cache_path(stem: str, idx: int, key: str, ext: str = "svg") -> Path:
-        return cache_dir / rc.cache_filename(stem, idx, key, ext)
+    def temp_cache_path(md_path: Path, block_idx: int, key: str, ext: str = "svg") -> Path:
+        return cache_dir / md_path.stem / rc.cache_filename(block_idx, key, ext)
 
     monkeypatch.setattr(rc, "CACHE_DIR", cache_dir)
+    monkeypatch.setattr(rc, "CACHE_ROOT", cache_dir)
     monkeypatch.setattr(rc, "INDEX_PATH", index_path)
-    monkeypatch.setattr(rc, "cache_path_for", temp_cache_path)
+    monkeypatch.setattr(rc, "cache_path_for_note", temp_cache_path)
     monkeypatch.setattr(rc, "REGISTRY", {"tikz": FailingTikzAdapter()})
 
     md_path = tmp_path / "broken.md"
