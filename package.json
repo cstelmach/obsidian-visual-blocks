@@ -1,6 +1,6 @@
 {
   "name": "obsidian-visual-blocks",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Cache-first viewer for TikZ/Graphviz/D2/LilyPond/SMILES code blocks in Obsidian.",
   "main": "main.js",
   "scripts": {

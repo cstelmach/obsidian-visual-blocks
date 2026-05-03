@@ -17,6 +17,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from render_cache.languages import canonicalize_fence_lang, fence_regex_alternation
 
 # Match a fenced block in a v1-supported language.
 # Captures: (1) full fence line including lang, (2) raw fence-language tag,
@@ -24,7 +25,7 @@ from dataclasses import dataclass
 # When a new language adapter is added (Phases 4-6), append its fence tag to
 # the alternation below AND register the canonical mapping in _FENCE_TO_LANG.
 BLOCK_RE = re.compile(
-    r"^(```(tikz(?:-paused)?|graphviz|d2|lilypond|smiles))\n(.*?)\n```",
+    rf"^(```({fence_regex_alternation()}))\n(.*?)\n```",
     re.DOTALL | re.MULTILINE,
 )
 
@@ -35,17 +36,6 @@ BLOCK_RE = re.compile(
 CACHE_REF_RE = re.compile(
     r"\n+!\[\[([^\]|\n]+\.(?:png|svg))\|(?:tikz-cache|render-cache|visual-blocks)\]\]"
 )
-
-# Map raw fence tags to canonical hashing language.
-_FENCE_TO_LANG = {
-    "tikz": "tikz",
-    "tikz-paused": "tikz",
-    "graphviz": "graphviz",
-    "d2": "d2",
-    "lilypond": "lilypond",
-    "smiles": "smiles",
-}
-
 
 @dataclass
 class CodeBlock:
@@ -70,7 +60,9 @@ def find_blocks(content: str) -> list[CodeBlock]:
     out: list[CodeBlock] = []
     for m in BLOCK_RE.finditer(content):
         fence_lang = m.group(2)
-        canonical = _FENCE_TO_LANG.get(fence_lang, fence_lang)
+        canonical = canonicalize_fence_lang(fence_lang)
+        if canonical is None:
+            continue
         out.append(
             CodeBlock(
                 language=canonical,

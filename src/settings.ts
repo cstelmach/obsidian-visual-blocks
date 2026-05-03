@@ -22,12 +22,19 @@
  * unit-tested directly.
  */
 import { App, PluginSettingTab, Setting } from "obsidian";
+import {
+  DEFAULT_ENABLED_LANGUAGES,
+  EnabledLanguages,
+  VISUAL_BLOCK_LANGUAGES,
+  normalizeEnabledLanguages,
+} from "./languages";
 import type RenderCachePlugin from "./main";
 
 export type RenderMode = "hybrid" | "cache-only" | "live";
 
 export interface RenderCacheSettings {
   mode: RenderMode;
+  enabledLanguages: EnabledLanguages;
   pythonPath: string;
   scriptPath: string;
   triggerOnSave: boolean;
@@ -36,6 +43,7 @@ export interface RenderCacheSettings {
 
 export const DEFAULT_SETTINGS: RenderCacheSettings = {
   mode: "hybrid",
+  enabledLanguages: { ...DEFAULT_ENABLED_LANGUAGES },
   pythonPath: "python3",
   scriptPath: "resources/scripts/python_single/render_cache.py",
   triggerOnSave: true,
@@ -90,6 +98,16 @@ export function isPlaceholderClickable(
   return effective === "hybrid" || effective === "live";
 }
 
+export function normalizeSettings(
+  raw: Partial<RenderCacheSettings> | null | undefined,
+): RenderCacheSettings {
+  return {
+    ...DEFAULT_SETTINGS,
+    ...(raw ?? {}),
+    enabledLanguages: normalizeEnabledLanguages(raw?.enabledLanguages),
+  };
+}
+
 export class RenderCacheSettingTab extends PluginSettingTab {
   private readonly plugin: RenderCachePlugin;
 
@@ -122,6 +140,29 @@ export class RenderCacheSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }),
       );
+
+    containerEl.createEl("h3", { text: "Visualization libraries" });
+    containerEl.createEl("p", {
+      text:
+        "Disable renderers you are not using. Disabled libraries show a placeholder, " +
+        "do not load cached SVGs, and are skipped by plugin-triggered renders. " +
+        "Reopen or reload the note if an already-rendered block does not update immediately.",
+      cls: "setting-item-description",
+    });
+
+    for (const lang of VISUAL_BLOCK_LANGUAGES) {
+      new Setting(containerEl)
+        .setName(lang.settingsName)
+        .setDesc(lang.description)
+        .addToggle((t) =>
+          t
+            .setValue(this.plugin.settings.enabledLanguages[lang.id])
+            .onChange(async (v) => {
+              this.plugin.settings.enabledLanguages[lang.id] = v;
+              await this.plugin.saveSettings();
+            }),
+        );
+    }
 
     new Setting(containerEl)
       .setName("Python path")

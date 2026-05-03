@@ -50,7 +50,17 @@ import {
   effectiveMode,
   isPlaceholderClickable,
   missMessage,
+  normalizeSettings,
 } from "./settings";
+import {
+  LanguageId,
+  VISUAL_BLOCK_LANGUAGES,
+  buildLanguageFilterArgs,
+  canonicalizeFenceLanguage,
+  hasEnabledSupportedBlock,
+  isLanguageEnabled,
+  languageLabel,
+} from "./languages";
 import {
   CacheStatusModal,
   aggregateNoteStatus,
@@ -58,8 +68,8 @@ import {
   statusBarText,
 } from "./cacheStatus";
 
-const LANGUAGES = ["tikz", "graphviz", "d2", "lilypond", "smiles"] as const;
-type Lang = (typeof LANGUAGES)[number];
+const LANGUAGES: LanguageId[] = VISUAL_BLOCK_LANGUAGES.map((l) => l.id);
+const FENCE_LANGUAGES = VISUAL_BLOCK_LANGUAGES.flatMap((l) => l.fences);
 
 const CACHE_ROOT = ".obsidian/plugins/visual-blocks/cache";
 const INDEX_PATH = `${CACHE_ROOT}/index.json`;
@@ -111,7 +121,10 @@ export default class RenderCachePlugin extends Plugin {
     this.statusBarEl = this.addStatusBarItem();
     this.statusBarEl.classList.add("visual-blocks-status-bar");
     this.statusBarEl.onclick = () => {
-      new CacheStatusModal(this.app, aggregateStatus(this.index)).open();
+      new CacheStatusModal(
+        this.app,
+        aggregateStatus(this.index, this.settings.enabledLanguages),
+      ).open();
     };
     this.registerEvent(
       this.app.workspace.on("file-open", () => this.updateStatusBar()),
@@ -123,9 +136,11 @@ export default class RenderCachePlugin extends Plugin {
     );
     this.updateStatusBar();
 
-    for (const lang of LANGUAGES) {
+    for (const fenceLang of FENCE_LANGUAGES) {
+      const lang = canonicalizeFenceLanguage(fenceLang);
+      if (!lang) continue;
       this.registerMarkdownCodeBlockProcessor(
-        lang,
+        fenceLang,
         async (source, el, ctx) => {
           try {
             await this.displayCachedBlock(source, lang, el, ctx);
@@ -151,7 +166,7 @@ export default class RenderCachePlugin extends Plugin {
     );
 
     console.log(
-      `visual-blocks: loaded; processors registered for ${LANGUAGES.join(", ")}; ` +
+      `visual-blocks: loaded; processors registered for ${FENCE_LANGUAGES.join(", ")}; ` +
         `mode=${this.settings.mode}; triggerOnSave=${this.settings.triggerOnSave}`,
     );
   }
@@ -164,7 +179,7 @@ export default class RenderCachePlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     const raw = (await this.loadData()) as Partial<RenderCacheSettings> | null;
-    this.settings = { ...DEFAULT_SETTINGS, ...(raw ?? {}) };
+    this.settings = normalizeSettings(raw);
   }
 
   async saveSettings(): Promise<void> {
@@ -194,13 +209,24 @@ export default class RenderCachePlugin extends Plugin {
 
   private async displayCachedBlock(
     source: string,
-    lang: Lang,
+    lang: LanguageId,
     el: HTMLElement,
     ctx: MarkdownPostProcessorContext,
   ): Promise<void> {
     el.empty();
     const wrapper = el.createDiv({ cls: "visual-blocks-block" });
     const mode = effectiveMode(this.settings, Platform.isMobile);
+
+    if (!isLanguageEnabled(this.settings.enabledLanguages, lang)) {
+      this.renderPlaceholder(
+        wrapper,
+        lang,
+        `${languageLabel(lang)} is disabled in Visual Blocks settings.`,
+        false,
+        ctx.sourcePath,
+      );
+      return;
+    }
 
     // Live mode (desktop only — mobile auto-overrides to cache-only above).
     // Fire async re-render of the entire file. Show stale cache or
@@ -302,7 +328,7 @@ export default class RenderCachePlugin extends Plugin {
 
   private renderPlaceholder(
     parent: HTMLElement,
-    lang: Lang,
+    lang: LanguageId,
     msg: string,
     clickable: boolean,
     sourcePath: string | null,
@@ -330,11 +356,16 @@ export default class RenderCachePlugin extends Plugin {
     filePath: string,
     force: boolean = false,
   ): Promise<void> {
+    const languageArgs = buildLanguageFilterArgs(this.settings.enabledLanguages);
+    if (!languageArgs) {
+      new Notice("No Visual Blocks visualization libraries are enabled.", 4000);
+      return;
+    }
     this.setRendering(filePath, true);
     try {
       const result = await spawnRender(
         this.settings,
-        force ? [filePath, "--force"] : [filePath],
+        force ? [filePath, "--force", ...languageArgs] : [filePath, ...languageArgs],
         this.vaultRoot(),
       );
       await this.reloadIndex();
@@ -364,7 +395,7 @@ export default class RenderCachePlugin extends Plugin {
 
   private renderInlineError(
     parent: HTMLElement,
-    lang: Lang,
+    lang: LanguageId,
     message: string,
     clickable: boolean,
     sourcePath: string | null,
@@ -397,7 +428,7 @@ export default class RenderCachePlugin extends Plugin {
     }
   }
 
-  private renderError(el: HTMLElement, lang: Lang, err: unknown): void {
+  private renderError(el: HTMLElement, lang: LanguageId, err: unknown): void {
     el.empty();
     const div = el.createDiv({ cls: "visual-blocks-error" });
     div.appendText(
@@ -424,13 +455,15 @@ export default class RenderCachePlugin extends Plugin {
     } catch {
       return;
     }
-    if (!hasSupportedBlock(text)) return;
+    if (!hasEnabledSupportedBlock(text, this.settings.enabledLanguages)) return;
 
     this.setRendering(path, true);
     try {
+      const languageArgs = buildLanguageFilterArgs(this.settings.enabledLanguages);
+      if (!languageArgs) return;
       const result = await spawnRender(
         this.settings,
-        [path],
+        [path, ...languageArgs],
         this.vaultRoot(),
       );
       await this.reloadIndex();
@@ -459,7 +492,11 @@ export default class RenderCachePlugin extends Plugin {
     if (!this.statusBarEl) return;
     const active = this.app.workspace.getActiveFile();
     const sourcePath = active?.path ?? null;
-    const noteStatus = aggregateNoteStatus(this.index, sourcePath);
+    const noteStatus = aggregateNoteStatus(
+      this.index,
+      sourcePath,
+      this.settings.enabledLanguages,
+    );
     const isRendering =
       (sourcePath !== null && this.renderingFiles.has(sourcePath)) ||
       this.renderingFiles.has("__vault__");
@@ -484,11 +521,4 @@ export default class RenderCachePlugin extends Plugin {
     // Mobile path — should never spawn here per AC9.9 mobile auto-override.
     return "";
   }
-}
-
-/** True if `text` contains at least one fenced codeblock with a supported
- *  language tag. Cheap, line-by-line; no full markdown parse. */
-function hasSupportedBlock(text: string): boolean {
-  const re = /^```(tikz(?:-paused)?|graphviz|d2|lilypond|smiles)\b/m;
-  return re.test(text);
 }

@@ -8,6 +8,7 @@ import {
   formatBytes,
   statusBarText,
 } from "../src/cacheStatus";
+import { DEFAULT_ENABLED_LANGUAGES } from "../src/languages";
 
 describe("formatBytes", () => {
   it("returns plain bytes for small values", () => {
@@ -31,10 +32,12 @@ describe("aggregateNoteStatus", () => {
     expect(aggregateNoteStatus(null, "a.md")).toEqual({
       totalBlocks: 0,
       errorCount: 0,
+      disabledBlocks: 0,
     });
     expect(aggregateNoteStatus({ notes: {} }, "a.md")).toEqual({
       totalBlocks: 0,
       errorCount: 0,
+      disabledBlocks: 0,
     });
   });
 
@@ -64,44 +67,74 @@ describe("aggregateNoteStatus", () => {
         },
       },
     };
-    expect(aggregateNoteStatus(index, "a.md")).toEqual({
+    expect(aggregateNoteStatus(index, "a.md", DEFAULT_ENABLED_LANGUAGES)).toEqual({
       totalBlocks: 2,
       errorCount: 1,
+      disabledBlocks: 0,
+    });
+  });
+
+  it("excludes disabled languages from displayable note totals", () => {
+    const index = {
+      notes: {
+        "a.md": {
+          blocks: [
+            { language: "lilypond", outputBytes: 100, cachePath: "x" },
+            { language: "d2", outputBytes: 200, cachePath: "y" },
+          ],
+        },
+      },
+    };
+    expect(
+      aggregateNoteStatus(index, "a.md", {
+        ...DEFAULT_ENABLED_LANGUAGES,
+        lilypond: false,
+      }),
+    ).toEqual({
+      totalBlocks: 1,
+      errorCount: 0,
+      disabledBlocks: 1,
     });
   });
 });
 
 describe("statusBarText", () => {
   it("shows no-cache state for notes without cached blocks", () => {
-    expect(statusBarText({ totalBlocks: 0, errorCount: 0 }, false)).toBe(
+    expect(statusBarText({ totalBlocks: 0, errorCount: 0, disabledBlocks: 0 }, false)).toBe(
       "no cache",
     );
   });
 
   it("shows idle item count when the current note has cached blocks", () => {
-    expect(statusBarText({ totalBlocks: 3, errorCount: 0 }, false)).toBe(
+    expect(statusBarText({ totalBlocks: 3, errorCount: 0, disabledBlocks: 0 }, false)).toBe(
       "✓ 3 items",
     );
-    expect(statusBarText({ totalBlocks: 1, errorCount: 0 }, false)).toBe(
+    expect(statusBarText({ totalBlocks: 1, errorCount: 0, disabledBlocks: 0 }, false)).toBe(
       "✓ 1 item",
     );
   });
 
   it("prioritizes captured render errors over idle state", () => {
-    expect(statusBarText({ totalBlocks: 3, errorCount: 1 }, false)).toBe(
+    expect(statusBarText({ totalBlocks: 3, errorCount: 1, disabledBlocks: 0 }, false)).toBe(
       "⚠ 1 failed",
     );
-    expect(statusBarText({ totalBlocks: 3, errorCount: 2 }, false)).toBe(
+    expect(statusBarText({ totalBlocks: 3, errorCount: 2, disabledBlocks: 0 }, false)).toBe(
       "⚠ 2 failed",
     );
   });
 
   it("shows rendering progress when the active note is being rendered", () => {
-    expect(statusBarText({ totalBlocks: 5, errorCount: 0 }, true)).toBe(
+    expect(statusBarText({ totalBlocks: 5, errorCount: 0, disabledBlocks: 0 }, true)).toBe(
       "rendering 1/5…",
     );
-    expect(statusBarText({ totalBlocks: 0, errorCount: 0 }, true)).toBe(
+    expect(statusBarText({ totalBlocks: 0, errorCount: 0, disabledBlocks: 0 }, true)).toBe(
       "rendering…",
+    );
+  });
+
+  it("shows disabled-block state when only disabled cached blocks exist", () => {
+    expect(statusBarText({ totalBlocks: 0, errorCount: 0, disabledBlocks: 2 }, false)).toBe(
+      "2 disabled blocks",
     );
   });
 });
@@ -150,8 +183,29 @@ describe("aggregateStatus", () => {
     };
     const s = aggregateStatus(index);
     expect(s.perLanguage).toEqual([
-      { language: "tikz", count: 2, bytes: 3000 },
-      { language: "d2", count: 1, bytes: 500 },
+      { language: "tikz", count: 2, bytes: 3000, enabled: true },
+      { language: "d2", count: 1, bytes: 500, enabled: true },
+    ]);
+  });
+
+  it("marks disabled languages in the per-language cache table data", () => {
+    const index = {
+      notes: {
+        "a.md": {
+          blocks: [
+            { language: "lilypond", outputBytes: 1000, cachePath: "x" },
+            { language: "d2", outputBytes: 2000, cachePath: "y" },
+          ],
+        },
+      },
+    };
+    const s = aggregateStatus(index, {
+      ...DEFAULT_ENABLED_LANGUAGES,
+      lilypond: false,
+    });
+    expect(s.perLanguage).toEqual([
+      { language: "lilypond", count: 1, bytes: 1000, enabled: false },
+      { language: "d2", count: 1, bytes: 2000, enabled: true },
     ]);
   });
 

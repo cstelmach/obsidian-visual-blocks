@@ -28,20 +28,17 @@ import {
 } from "./cacheStatus";
 import {
   RenderCacheSettings,
-  effectiveMode,
   nextMode,
 } from "./settings";
 import { spawnRender, spawnRenderWithNotice } from "./render";
-
-/** Languages the plugin handles. Single source of truth for command palette
- *  output; mirrors LANGUAGES in main.ts. */
-const SUPPORTED_LANGUAGES = [
-  "tikz",
-  "graphviz",
-  "d2",
-  "lilypond",
-  "smiles",
-] as const;
+import {
+  buildLanguageFilterArgs,
+  canonicalizeFenceLanguage,
+  enabledLanguageIds,
+  hasEnabledSupportedBlock,
+  isLanguageEnabled,
+  isSupportedFenceLanguage,
+} from "./languages";
 
 /** Find which fenced block contains the given line. Returns blockIdx (0-based,
  *  counting only blocks of supported languages) or null if cursor is not inside
@@ -60,12 +57,10 @@ export function findBlockAtCursorLine(
     const fenceMatch = /^```(\w[\w-]*)/.exec(line);
     if (!inBlock && fenceMatch) {
       const lang = fenceMatch[1].toLowerCase();
-      if (
-        (SUPPORTED_LANGUAGES as readonly string[]).includes(lang) ||
-        lang === "tikz-paused"
-      ) {
+      const canonical = canonicalizeFenceLanguage(lang);
+      if (canonical && isSupportedFenceLanguage(lang)) {
         inBlock = true;
-        blockLang = lang === "tikz-paused" ? "tikz" : lang;
+        blockLang = canonical;
         blockStart = i;
         blockIdx += 1;
       }
@@ -187,6 +182,13 @@ async function refreshBlock(ctx: CommandContext): Promise<void> {
     );
     return;
   }
+  if (!isLanguageEnabled(ctx.settings().enabledLanguages, block.language)) {
+    new Notice(
+      `${block.language} blocks are disabled in Visual Blocks settings.`,
+      4000,
+    );
+    return;
+  }
 
   // CRITICAL: Python reads the file from DISK. If the user edited the block
   // but hasn't saved, the editor buffer differs from disk content and
@@ -217,11 +219,13 @@ async function refreshBlock(ctx: CommandContext): Promise<void> {
   }
 
   new Notice(`Refreshing ${block.language} block #${block.blockIdx}…`, 3000);
+  const languageArgs = renderLanguageArgs(ctx);
+  if (!languageArgs) return;
   ctx.setRendering?.(file.path, true);
   try {
     const ok = await spawnRenderWithNotice(
       ctx.settings(),
-      [file.path],
+      [file.path, ...languageArgs],
       ctx.vaultRoot(),
       `${block.language} block #${block.blockIdx} refreshed.`,
     );
@@ -244,9 +248,11 @@ async function refreshNote(ctx: CommandContext): Promise<void> {
   // current view, persist them first so Python sees the visible source.
   // Advisor §1 (Phase 9 pre-ship review).
   const view = ctx.app.workspace.getActiveViewOfType(MarkdownView);
+  let sourceForFilter: string | null = null;
   if (view?.file?.path === file.path) {
     try {
       const buffer = view.editor.getValue();
+      sourceForFilter = buffer;
       const onDisk = await ctx.app.vault.read(file);
       if (onDisk !== buffer) {
         await ctx.app.vault.modify(file, buffer);
@@ -255,13 +261,26 @@ async function refreshNote(ctx: CommandContext): Promise<void> {
       console.warn("visual-blocks: refresh-note disk-sync failed", err);
     }
   }
+  if (sourceForFilter === null) {
+    try {
+      sourceForFilter = await ctx.app.vault.read(file);
+    } catch {
+      sourceForFilter = "";
+    }
+  }
+  if (!hasEnabledSupportedBlock(sourceForFilter, ctx.settings().enabledLanguages)) {
+    new Notice("No enabled Visual Blocks libraries in this note.", 4000);
+    return;
+  }
 
   new Notice(`Refreshing all blocks in ${file.path}…`, 3000);
+  const languageArgs = renderLanguageArgs(ctx);
+  if (!languageArgs) return;
   ctx.setRendering?.(file.path, true);
   try {
     const ok = await spawnRenderWithNotice(
       ctx.settings(),
-      [file.path, "--force"],
+      [file.path, "--force", ...languageArgs],
       ctx.vaultRoot(),
       `Refreshed: ${file.path}`,
     );
@@ -274,6 +293,8 @@ async function refreshNote(ctx: CommandContext): Promise<void> {
 // ─── refresh-vault (AC9.3) ────────────────────────────────────────────────
 
 async function refreshVault(ctx: CommandContext): Promise<void> {
+  const languageArgs = renderLanguageArgs(ctx);
+  if (!languageArgs) return;
   const ok = await new Promise<boolean>((resolve) => {
     new ConfirmationModal(
       ctx.app,
@@ -292,7 +313,7 @@ async function refreshVault(ctx: CommandContext): Promise<void> {
   try {
     const result = await spawnRender(
       ctx.settings(),
-      ["--all", "--force"],
+      ["--all", "--force", ...languageArgs],
       ctx.vaultRoot(),
       (line, source) => progress.appendLine(line, source),
     );
@@ -313,7 +334,10 @@ async function refreshVault(ctx: CommandContext): Promise<void> {
 
 function showStatus(ctx: CommandContext): void {
   const idx = ctx.getIndex();
-  const status: CacheStatus = aggregateStatus(idx);
+  const status: CacheStatus = aggregateStatus(
+    idx,
+    ctx.settings().enabledLanguages,
+  );
   new CacheStatusModal(ctx.app, status).open();
 }
 
@@ -503,10 +527,12 @@ export function fireLiveRender(
   ctx: CommandContext,
   filePath: string,
 ): void {
+  const languageArgs = buildLanguageFilterArgs(ctx.settings().enabledLanguages);
+  if (!languageArgs) return;
   ctx.setRendering?.(filePath, true);
   void spawnRender(
     ctx.settings(),
-    [filePath, "--force"],
+    [filePath, "--force", ...languageArgs],
     ctx.vaultRoot(),
   ).then(async (r) => {
     if (r.exitCode === 0) await ctx.reloadIndex();
@@ -517,6 +543,11 @@ export function fireLiveRender(
   });
 }
 
-/** Re-export for completeness. Allows main.ts to consult the helper without
- *  importing both modules. */
-export { effectiveMode };
+function renderLanguageArgs(ctx: CommandContext): string[] | null {
+  const ids = enabledLanguageIds(ctx.settings().enabledLanguages);
+  if (ids.length === 0) {
+    new Notice("No Visual Blocks visualization libraries are enabled.", 4000);
+    return null;
+  }
+  return ["--languages", ids.join(",")];
+}

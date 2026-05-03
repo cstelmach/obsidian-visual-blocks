@@ -36,6 +36,11 @@ from render_cache.cache_paths import (
 )
 from render_cache.hash import compute_key, preamble_digest
 from render_cache.index import RENDERER_VERSION, load_index, save_index
+from render_cache.languages import (
+    CANONICAL_LANGUAGES,
+    fence_tags_for_languages,
+    parse_language_filter,
+)
 from render_cache.markdown_io import find_blocks, find_existing_ref
 from render_cache.postprocess import apply as postprocess_apply
 
@@ -59,7 +64,12 @@ def _vault_relative(p: Path) -> str:
         return p.as_posix()
 
 
-def process_file(md_path: Path, force: bool, dry_run: bool) -> int:
+def process_file(
+    md_path: Path,
+    force: bool,
+    dry_run: bool,
+    languages: set[str] | None = None,
+) -> int:
     """Process one markdown file. Return number of failed blocks (0 = all ok)."""
     if not md_path.exists():
         print(f"[!] not found: {md_path}", file=sys.stderr)
@@ -75,14 +85,33 @@ def process_file(md_path: Path, force: bool, dry_run: bool) -> int:
 
     index = load_index(INDEX_PATH)
     note_entry = index["notes"].setdefault(rel, {"blocks": []})
+    existing_blocks = {
+        (b.get("blockIdx"), b.get("language")): b
+        for b in note_entry.get("blocks", [])
+        if isinstance(b, dict)
+    }
 
     edits: list[tuple[int, int, str]] = []
     in_use_filenames: set[str] = set()
     failed = 0
     new_blocks_meta: list[dict] = []
+    note_cache_dir = cache_path_for_note(md_path, 0, "_").parent
 
     for block_idx, block in enumerate(blocks):
         display_idx = block_idx + 1
+        if languages is not None and block.language not in languages:
+            print(
+                f"   [{display_idx}] {block.language}: "
+                "skipped by --languages filter"
+            )
+            existing = existing_blocks.get((block_idx, block.language))
+            if existing is not None:
+                new_blocks_meta.append(existing)
+                existing_path = Path(str(existing.get("cachePath", "")))
+                if existing_path.name:
+                    in_use_filenames.add(existing_path.name)
+            continue
+
         adapter = REGISTRY.get(block.language)
         if adapter is None:
             print(f"   [{display_idx}] {block.language}: no adapter — skipped")
@@ -159,8 +188,8 @@ def process_file(md_path: Path, force: bool, dry_run: bool) -> int:
         new_content = new_content[:start] + replacement + new_content[end:]
 
     # Cleanup orphaned SVGs for this note (different key, same stem+idx slot).
-    if not dry_run:
-        for old_svg in svg_path.parent.glob("*.svg") if blocks else []:
+    if not dry_run and languages is None:
+        for old_svg in note_cache_dir.glob("*.svg") if blocks else []:
             if old_svg.name not in in_use_filenames:
                 print(f"   [-] orphan: {old_svg.name}")
                 old_svg.unlink()
@@ -227,20 +256,17 @@ def sweep_orphans(dry_run: bool) -> int:
     return deleted
 
 
-def find_all_md_with_blocks() -> list[Path]:
+def find_all_md_with_blocks(languages: set[str] | None = None) -> list[Path]:
     """Return markdown files containing at least one supported codeblock fence.
 
-    The fence-tag list is the v1 language surface (now 6 items including
-    ``tikz-paused``). Phase 6 deliberately keeps the explicit list rather
-    than refactoring to derive-from-``REGISTRY`` (D6.7): the SMILES adapter
-    is the Phase 6 mandate; bundling a 3-module refactor into the same diff
-    muddles review/triage. The refactor is queued for a follow-up commit;
-    the cost of one more list-edit per future language remains low.
+    Supported examples: "tikz", "tikz-paused", "graphviz", "d2",
+    "lilypond", "smiles". The implementation derives the actual fence tags
+    from ``render_cache.languages`` so plugin and Python filters do not drift.
     """
     files: list[Path] = []
-    fence_tags = (
-        "tikz", "tikz-paused", "graphviz", "d2", "lilypond", "smiles",
-    )
+    fence_tags = fence_tags_for_languages(languages)
+    if not fence_tags:
+        return files
     for root in SCAN_ROOTS:
         for md in root.rglob("*.md"):
             try:
@@ -289,20 +315,39 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Don't write files or run renderers; just report what would happen",
     )
+    parser.add_argument(
+        "--languages",
+        help=(
+            "Comma-separated canonical language ids to render "
+            f"({', '.join(CANONICAL_LANGUAGES)}). Defaults to all."
+        ),
+    )
     args = parser.parse_args(argv)
 
+    try:
+        languages = parse_language_filter(args.languages)
+    except ValueError as e:
+        parser.error(str(e))
+
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    if languages is not None:
+        print(f"Language filter: {','.join(lang for lang in CANONICAL_LANGUAGES if lang in languages)}")
 
     if args.sweep:
         sweep_orphans(args.dry_run)
         return 0
 
     if args.all:
-        files = find_all_md_with_blocks()
+        files = find_all_md_with_blocks(languages)
         print(f"Found {len(files)} markdown file(s) with supported blocks.\n")
         any_failed = False
         for f in files:
-            failed = process_file(f, force=args.force, dry_run=args.dry_run)
+            failed = process_file(
+                f,
+                force=args.force,
+                dry_run=args.dry_run,
+                languages=languages,
+            )
             if failed:
                 any_failed = True
         return 1 if any_failed else 0
@@ -314,4 +359,9 @@ def main(argv: list[str] | None = None) -> int:
     md_path = Path(args.path)
     if not md_path.is_absolute():
         md_path = (Path.cwd() / md_path).resolve()
-    return 1 if process_file(md_path, force=args.force, dry_run=args.dry_run) else 0
+    return 1 if process_file(
+        md_path,
+        force=args.force,
+        dry_run=args.dry_run,
+        languages=languages,
+    ) else 0

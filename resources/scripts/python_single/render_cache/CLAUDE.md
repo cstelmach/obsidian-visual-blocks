@@ -1,7 +1,7 @@
 # render_cache Package Guide
 
 **Last Updated:** 2026-05-03
-**Version:** 0.2.0 renderer package, Visual Blocks plugin 0.4.0
+**Version:** 0.2.0 renderer package, Visual Blocks plugin 0.5.0
 
 This package is the canonical renderer for Visual Blocks. It replaces the old
 single-purpose `tikz_cache.py` workflow with a multi-language cache pipeline.
@@ -196,6 +196,15 @@ Render all supported blocks under `SCAN_ROOTS`:
 python resources/scripts/python_single/render_cache.py --all
 ```
 
+Limit a run to selected canonical language IDs:
+
+```bash
+python resources/scripts/python_single/render_cache.py --all --languages tikz,d2,smiles
+```
+
+The Visual Blocks plugin uses this filter for per-library settings. Direct CLI
+runs without `--languages` still process all supported languages.
+
 Sweep stale cache files:
 
 ```bash
@@ -217,7 +226,9 @@ Do the smallest complete slice:
 
 1. Add `render_cache/adapters/<language>.py`.
 2. Register it in `render_cache/adapters/__init__.py`.
-3. Add the fence to `markdown_io.BLOCK_RE` and `_FENCE_TO_LANG`.
+3. Add the canonical language and fence aliases to `render_cache/languages.py`.
+4. Add tests for adapter contract, markdown discovery, render success, render
+   failure, and `--languages` filtering where relevant.
 4. Add the fence to the plugin language list in
    `.obsidian/plugins/visual-blocks/src/main.ts`.
 5. Add tests for adapter contract, markdown discovery, render success, render

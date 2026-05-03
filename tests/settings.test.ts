@@ -14,7 +14,9 @@ import {
   isPlaceholderClickable,
   missMessage,
   nextMode,
+  normalizeSettings,
 } from "../src/settings";
+import { DEFAULT_ENABLED_LANGUAGES } from "../src/languages";
 
 describe("nextMode (mode cycle)", () => {
   it("cycles hybrid → cache-only → live → hybrid", () => {
@@ -103,8 +105,9 @@ describe("isPlaceholderClickable", () => {
 });
 
 describe("DEFAULT_SETTINGS shape", () => {
-  it("has exactly the 5 documented keys", () => {
+  it("has exactly the 6 documented keys", () => {
     expect(Object.keys(DEFAULT_SETTINGS).sort()).toEqual([
+      "enabledLanguages",
       "mode",
       "pythonPath",
       "scriptPath",
@@ -133,5 +136,48 @@ describe("DEFAULT_SETTINGS shape", () => {
 
   it("default useLoginShell is true (macOS PATH inheritance)", () => {
     expect(DEFAULT_SETTINGS.useLoginShell).toBe(true);
+  });
+
+  it("defaults every visualization library to enabled", () => {
+    expect(DEFAULT_SETTINGS.enabledLanguages).toEqual(DEFAULT_ENABLED_LANGUAGES);
+  });
+});
+
+describe("normalizeSettings", () => {
+  it("fills enabledLanguages for older saved settings", () => {
+    const normalized = normalizeSettings({
+      mode: "cache-only",
+      pythonPath: "/tmp/python",
+    });
+    expect(normalized.mode).toBe("cache-only");
+    expect(normalized.pythonPath).toBe("/tmp/python");
+    expect(normalized.enabledLanguages).toEqual(DEFAULT_ENABLED_LANGUAGES);
+  });
+
+  it("fills missing language keys with true", () => {
+    const normalized = normalizeSettings({
+      enabledLanguages: { lilypond: false },
+    } as unknown as Partial<typeof DEFAULT_SETTINGS>);
+    expect(normalized.enabledLanguages).toEqual({
+      ...DEFAULT_ENABLED_LANGUAGES,
+      lilypond: false,
+    });
+  });
+
+  it("ignores unknown persisted language keys", () => {
+    const normalized = normalizeSettings({
+      enabledLanguages: {
+        lilypond: false,
+        mermaid: false,
+      },
+    } as unknown as Partial<typeof DEFAULT_SETTINGS>);
+    expect(Object.keys(normalized.enabledLanguages).sort()).toEqual([
+      "d2",
+      "graphviz",
+      "lilypond",
+      "smiles",
+      "tikz",
+    ]);
+    expect(normalized.enabledLanguages.lilypond).toBe(false);
   });
 });

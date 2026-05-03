@@ -8,6 +8,11 @@
  * is smoke-tested at the user gate.
  */
 import { App, Modal } from "obsidian";
+import {
+  DEFAULT_ENABLED_LANGUAGES,
+  EnabledLanguages,
+  isLanguageEnabled,
+} from "./languages";
 
 interface BlockEntryShape {
   language: string;
@@ -27,6 +32,7 @@ export interface PerLanguageStat {
   language: string;
   count: number;
   bytes: number;
+  enabled: boolean;
 }
 
 export interface CacheStatus {
@@ -42,11 +48,15 @@ export interface CacheStatus {
 export interface NoteCacheStatus {
   totalBlocks: number;
   errorCount: number;
+  disabledBlocks: number;
 }
 
 /** Aggregate counts/bytes/per-language from a parsed index.json.
  *  Pure: no I/O, no Obsidian deps. */
-export function aggregateStatus(index: IndexShape | null): CacheStatus {
+export function aggregateStatus(
+  index: IndexShape | null,
+  enabledLanguages: EnabledLanguages = DEFAULT_ENABLED_LANGUAGES,
+): CacheStatus {
   if (!index || !index.notes) {
     return {
       totalNotes: 0,
@@ -80,7 +90,15 @@ export function aggregateStatus(index: IndexShape | null): CacheStatus {
   }
 
   const perLanguage: PerLanguageStat[] = Object.entries(langMap)
-    .map(([language, v]) => ({ language, count: v.count, bytes: v.bytes }))
+    .map(([language, v]) => ({
+      language,
+      count: v.count,
+      bytes: v.bytes,
+      enabled:
+        language === "unknown"
+          ? true
+          : isLanguageEnabled(enabledLanguages, language),
+    }))
     .sort((a, b) => b.count - a.count); // descending by count
 
   return {
@@ -98,20 +116,26 @@ export function aggregateStatus(index: IndexShape | null): CacheStatus {
 export function aggregateNoteStatus(
   index: IndexShape | null,
   sourcePath: string | null,
+  enabledLanguages: EnabledLanguages = DEFAULT_ENABLED_LANGUAGES,
 ): NoteCacheStatus {
   if (!index || !index.notes || !sourcePath) {
-    return { totalBlocks: 0, errorCount: 0 };
+    return { totalBlocks: 0, errorCount: 0, disabledBlocks: 0 };
   }
   const note = index.notes[sourcePath];
-  if (!note) return { totalBlocks: 0, errorCount: 0 };
+  if (!note) return { totalBlocks: 0, errorCount: 0, disabledBlocks: 0 };
 
   let totalBlocks = 0;
   let errorCount = 0;
+  let disabledBlocks = 0;
   for (const block of note.blocks ?? []) {
+    if (!isLanguageEnabled(enabledLanguages, block.language)) {
+      disabledBlocks += 1;
+      continue;
+    }
     totalBlocks += 1;
     if (block.lastError) errorCount += 1;
   }
-  return { totalBlocks, errorCount };
+  return { totalBlocks, errorCount, disabledBlocks };
 }
 
 /** Text for the status-bar item (SPEC AC10.3). */
@@ -129,6 +153,9 @@ export function statusBarText(
   }
   if (status.totalBlocks > 0) {
     return `✓ ${status.totalBlocks} item${status.totalBlocks === 1 ? "" : "s"}`;
+  }
+  if (status.disabledBlocks > 0) {
+    return `${status.disabledBlocks} disabled block${status.disabledBlocks === 1 ? "" : "s"}`;
   }
   return "no cache";
 }
@@ -182,11 +209,13 @@ export class CacheStatusModal extends Modal {
       head.createEl("th", { text: "Language" });
       head.createEl("th", { text: "Blocks" });
       head.createEl("th", { text: "Disk" });
+      head.createEl("th", { text: "State" });
       for (const row of this.status.perLanguage) {
         const tr = table.createEl("tr");
         tr.createEl("td", { text: row.language });
         tr.createEl("td", { text: String(row.count) });
         tr.createEl("td", { text: formatBytes(row.bytes) });
+        tr.createEl("td", { text: row.enabled ? "enabled" : "disabled" });
       }
     }
   }

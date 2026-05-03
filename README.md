@@ -1,7 +1,7 @@
 # Visual Blocks
 
 **Last Updated:** 2026-05-03
-**Version:** 0.4.0
+**Version:** 0.5.0
 
 Visual Blocks turns supported fenced code blocks into cached SVG visuals in
 Obsidian. Rendering is done by the Python pipeline at
@@ -76,10 +76,20 @@ Open Settings -> Community plugins -> Visual Blocks.
 | Setting | Default | Meaning |
 |---------|---------|---------|
 | Render mode | `hybrid` | Normal display behavior on desktop |
+| Visualization libraries | All on | Per-language toggles for TikZ, Graphviz, D2, LilyPond, and SMILES |
 | Python path | `python3` | Python executable used for render commands |
 | Script path | `resources/scripts/python_single/render_cache.py` | Vault-relative renderer script |
 | Re-render on save | On | Desktop save hook for supported blocks |
 | Spawn through login shell | On | Uses `$SHELL -lc` to inherit Homebrew/conda paths |
+
+The visualization-library toggles let you disable renderers you are not using.
+For example, if you are not writing music notation, turn off LilyPond. Disabled
+libraries show a small placeholder instead of loading cached SVGs, and plugin
+commands skip them when spawning Python.
+
+Disabling a library does **not** delete existing cache files or markdown refs.
+If you re-enable the library later, existing cache entries can be reused when
+the source hash still matches.
 
 If render commands fail because Python cannot import dependencies such as
 `rdkit`, set Python path to the verified conda interpreter. On this machine that
@@ -138,6 +148,12 @@ Render every supported block in the scan roots:
 python resources/scripts/python_single/render_cache.py --all
 ```
 
+Render only selected languages from the command line:
+
+```bash
+python resources/scripts/python_single/render_cache.py --all --languages tikz,d2,smiles
+```
+
 Sweep stale cache files:
 
 ```bash
@@ -148,6 +164,10 @@ From Obsidian desktop, prefer the command palette for one-block and one-note
 refreshes. Use the command line for bulk operations when you want full terminal
 output.
 
+By default, direct terminal commands process all supported languages. The plugin
+passes `--languages` automatically based on your enabled visualization-library
+settings.
+
 ## Status And Errors
 
 The status bar shows the state of the active note:
@@ -157,6 +177,7 @@ The status bar shows the state of the active note:
 | `✓ N item(s)` | This note has N cached blocks and no recorded failures |
 | `rendering...` | A desktop render command is currently running |
 | `⚠ N failed` | N blocks have captured renderer errors in `index.json` |
+| `N disabled block(s)` | This note has cached blocks only for disabled libraries |
 | `no cache` | The active note has no Visual Blocks cache entry |
 
 Click the status-bar item to open the cache-status modal.
@@ -200,6 +221,13 @@ by the migration/markdown helpers, but new refs should use `visual-blocks`.
 - Read the captured error message.
 - Fix the source block.
 - Retry from desktop.
+
+**A block says the library is disabled**
+
+- Open Settings -> Community plugins -> Visual Blocks.
+- Re-enable the corresponding visualization library.
+- Reopen or reload the note if an already-rendered view does not update
+  immediately.
 
 **SVG appears twice or Obsidian says the cache file cannot be found**
 
