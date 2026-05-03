@@ -396,7 +396,7 @@ class TestRealCacheHardening:
         return files[0].read_text(encoding="utf-8")
 
     def test_real_tikz_after_apply_has_no_unprefixed_g_ids(self):
-        svg = self._read_one("mSB3-4_reals__1__*.svg")
+        svg = self._read_one("kn/math/concepts/mSB3-4_reals/0__*.svg")
         out = apply(svg, "deadbeef12345678")
         import re
         # No id='g0-N' or id='g1-N' pattern survives without prefix.
@@ -404,7 +404,7 @@ class TestRealCacheHardening:
         assert unprefixed == [], f"Unprefixed dvisvgm IDs survive: {unprefixed[:5]}"
 
     def test_real_tikz_after_apply_has_no_pt_units_in_outer_dims(self):
-        svg = self._read_one("mSB3-4_reals__1__*.svg")
+        svg = self._read_one("kn/math/concepts/mSB3-4_reals/0__*.svg")
         out = apply(svg, "deadbeef12345678")
         import re
         # Width/height must not carry pt unit any more.
@@ -414,7 +414,7 @@ class TestRealCacheHardening:
         assert m_h is None, f"height still has pt: {m_h.group(0) if m_h else None}"
 
     def test_real_smiles_after_apply_has_no_hardcoded_black_in_styles(self):
-        svg = self._read_one("_RENDER_TEST_smiles__1__*.svg")
+        svg = self._read_one("kn/math/concepts/_RENDER_TEST_smiles/0__*.svg")
         out = apply(svg, "deadbeef12345678")
         # SMILES has zero attribute-form fill="black"; all CSS-style.
         assert "stroke:#000000" not in out
@@ -423,7 +423,7 @@ class TestRealCacheHardening:
         assert "fill:#FFFFFF" in out
 
     def test_real_graphviz_after_apply_has_no_attribute_black(self):
-        svg = self._read_one("_RENDER_TEST_graphviz__1__*.svg")
+        svg = self._read_one("kn/math/concepts/_RENDER_TEST_graphviz/0__*.svg")
         out = apply(svg, "deadbeef12345678")
         import re
         # Attribute-form black gone.
@@ -435,7 +435,7 @@ class TestRealCacheHardening:
     def test_real_d2_after_apply_preserves_user_colors(self):
         """D2 has no ``black`` — only #0A0F25 (dark blue), #FFFFFF white, etc.
         Apply must be a near-no-op on color attributes."""
-        svg = self._read_one("_RENDER_TEST_d2__1__*.svg")
+        svg = self._read_one("kn/math/concepts/_RENDER_TEST_d2/0__*.svg")
         out = apply(svg, "deadbeef12345678")
         # User-chosen colors preserved.
         assert "#0A0F25" in out
@@ -443,7 +443,7 @@ class TestRealCacheHardening:
 
     def test_real_lilypond_after_apply_keeps_existing_currentColor(self):
         """LilyPond already emits ``currentColor`` — apply is a no-op for color."""
-        svg = self._read_one("_RENDER_TEST_lilypond__1__*.svg")
+        svg = self._read_one("kn/math/concepts/_RENDER_TEST_lilypond/0__*.svg")
         out = apply(svg, "deadbeef12345678")
         # Already-currentColor stays.
         assert "currentColor" in out
