@@ -3,10 +3,10 @@
 **Spec:** `/Users/cs/Obsidian/_/docs/specs/render-cache/SPEC.md`
 **Plan:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PLAN.md`
 **Archive:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PROGRESS_ARCHIVE.md` (Phase 1-6 + Initialization + diagnostic checkpoint)
-**Status:** Phase 12 DONE — user-gated; next: Phase 13 Documentation.
+**Status:** Phase 13 Documentation DONE agent-side; README user gate pending.
 **Mode:** Manual (user-driven phase progression)
 **Started:** 2026-04-27
-**Last Updated:** 2026-05-03 (Phase 12 user gate closed)
+**Last Updated:** 2026-05-03 (Phase 13 agent-side complete)
 
 > **Mode note:** PLAN.md L4 declares manual mode. SPEC §11.4 requires each
 > phase to end at a "Direct user feedback (gate)" before the next begins.
@@ -51,7 +51,7 @@
 | Phase 10 — Plugin error display + status bar | DONE — gate closed | 2026-05-01 | 2026-05-01 (obsidian-verify gate) | cfe598614 + Phase 10 log | jest 79/79 ✓ + python 170/170 ✓ + obsidian-verify gate ✓ | ~2h | Python now preserves failed block entries in `index.json` with `lastError`; plugin shows retryable inline error blocks before image/placeholder handling; status bar shows per-note idle/rendering/error state and opens the Phase 9 cache-status modal. Gate closed via isolated obsidian-verify harness: valid note cached image + `✓ 1 item`; broken TikZ note inline LaTeX error + `⚠ 1 failed`; error click retries; status-bar click opens modal; 0 visual-blocks console errors/warnings. |
 | Phase 11 — iOS validation (USER-DRIVEN) | DONE — user-gated | 2026-05-02 07:38 | 2026-05-02 07:51 | 0881a217a (preflight) + 5b4451f15 (gate) + hash record | local preflight ✓; user iOS gate ✓ | ~15m | User reported clean/correct on required phone checks 2, 3, and 4. AC11.1-AC11.4 satisfied: mSB5-2 partial note, original crash trigger, and third representative file loaded correctly on iOS. |
 | Phase 12 — Migration tool: legacy → new layout | DONE — user-gated | 2026-05-02 08:38 | 2026-05-03 (gate closed) | 6a64cc6c3 + 25bb544bc + 65641ef64 + a2e64472b + 00eeb832e + gate log | python 169/169 ✓ + jest 81/81 ✓ + build ✓ + canary ✓ + migration execute ✓ + user re-gate ✓ | | Real migration executed after explicit user approval. 170 SVGs moved to `.obsidian/plugins/visual-blocks/cache/v1/`; 100 markdown files / 169 refs rewritten; 5 PNGs + 3 orphan SVGs deleted; legacy dir removed. Native Obsidian `.obsidian/plugins/...` wikilink resolver messages fixed by CSS wrapper suppression. User re-gate passed 2026-05-03. |
-| Phase 13 — Documentation | Not Started | | | | | | 2–3h est. Final phase before optional 14. |
+| Phase 13 — Documentation | DONE (agent) — user gate pending | 2026-05-03 19:37 | 2026-05-03 19:43 | pending | reader test ✓ + jest 81/81 ✓ + python 169/169 ✓ + build ✓ + canary ✓ | ~10m | Added Visual Blocks README, render_cache package CLAUDE.md, root CLAUDE.md canonical pipeline pointer, and this final summary. User gate: read README and confirm it answers likely questions. |
 | Phase 14 — gboyd068/SwiftLaTeX hands-on eval | Not Started (optional) | | | | | | OPTIONAL. Skip unless v1 has gaps surfaced during Phase 11. |
 
 **Status values:** Not Started, In Progress, DONE, Blocked, Not Started (optional).
@@ -64,6 +64,85 @@
 ## Log
 
 _(Most recent first — reverse chronological)_
+
+### Phase 13 — Documentation — 2026-05-03 DONE agent-side
+
+**Scope:** Complete the final mandatory documentation phase for Visual Blocks.
+
+**Completed:**
+
+- Added `.obsidian/plugins/visual-blocks/README.md`.
+  - Explains installation/enabling.
+  - Lists supported languages: `tikz`, `tikz-paused`, `graphviz`, `d2`,
+    `lilypond`, `smiles`.
+  - Documents the 7 commands, 3 render modes, settings, cache layout, normal
+    workflow, status/error behavior, troubleshooting, and development checks.
+- Added `resources/scripts/python_single/render_cache/CLAUDE.md`.
+  - Documents dispatcher architecture, module map, supported fences, adapter
+    contract, post-processing rules, cache layout, commands, tests, and
+    language-extension steps.
+- Updated root `CLAUDE.md`.
+  - Adds "Visual Blocks Render Pipeline" as the canonical TikZ-style visual
+    pipeline.
+  - Points agents to `render_cache.py`, the plugin README, and the package
+    CLAUDE.md.
+  - States that `tikz_cache.py` is only a compatibility shim.
+- Updated this `PROGRESS.md` entry with outcomes, verification, known
+  limitations, and the user README gate.
+
+**Reader test:**
+
+- `README.md` contains installation, settings, all 5 language families,
+  all 7 commands, and all 3 modes.
+- `render_cache/CLAUDE.md` contains architecture, dispatcher rules, adapter
+  contract, and the three post-processing rules.
+- root `CLAUDE.md` contains the canonical Visual Blocks pipeline pointer and
+  the `render_cache.py` / `tikz_cache.py` distinction.
+
+**Verification:**
+
+- Plugin Jest:
+  `.obsidian/plugins/visual-blocks npm test -- --runInBand` → 81/81 pass.
+- Plugin build:
+  `.obsidian/plugins/visual-blocks npm run build` → production build succeeds.
+- Python:
+  `/opt/homebrew/Caskroom/miniconda/base/bin/python -m pytest
+  resources/scripts/python_single/tests -q` → 169 passed, 6 skipped.
+- Obsidian canary:
+  `resources/tests/harness node --import tsx run.ts --canary
+  --json=/tmp/visual-blocks-phase13-canary-2026-05-03.json` →
+  PASS, 3/3 assertions, 0 console errors, 0 warnings.
+
+**Known limitations documented:**
+
+- Mobile is cache-only and cannot spawn Python.
+- Live mode re-renders in the background and may require a note reload.
+- Dark-mode adaptation is limited by the current `<img>` embedding path.
+- The Python package and TypeScript plugin still duplicate the supported
+  language list.
+- `SCAN_ROOTS` currently scans `kn/` only.
+- 3 pre-existing TikZ source bugs remain on the separate triage backlog.
+
+**Divergence Check — Phase 13:**
+
+- Files modified vs plan: 4/4 planned surfaces:
+  `.obsidian/plugins/visual-blocks/README.md`,
+  `resources/scripts/python_single/render_cache/CLAUDE.md`, root `CLAUDE.md`,
+  and `docs/specs/render-cache/PROGRESS.md`.
+- Complexity: documentation only; no runtime code changes.
+- All changes link to SPEC AC13.1-AC13.4.
+- Test-induced cache churn was restored before commit; unrelated `.omx`,
+  journal, and archive edits were left untouched.
+
+**User gate — Phase 13:**
+
+User reads `.obsidian/plugins/visual-blocks/README.md` and confirms it answers
+the likely install, use, refresh, mobile, error, and troubleshooting questions.
+
+When confirmed, reply: `Phase 13 user gate passed`.
+
+**Next:** Completion/final acceptance pass, unless optional Phase 14 is
+explicitly requested.
 
 ### Phase 12 — User re-gate closure — 2026-05-03 DONE
 
