@@ -3,10 +3,10 @@
 **Spec:** `/Users/cs/Obsidian/_/docs/specs/render-cache/SPEC.md`
 **Plan:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PLAN.md`
 **Archive:** `/Users/cs/Obsidian/_/docs/specs/render-cache/PROGRESS_ARCHIVE.md` (Phase 1-6 + Initialization + diagnostic checkpoint)
-**Status:** All mandatory phases DONE — Phase 13 user-gated; next: completion/final acceptance.
+**Status:** Complete — all mandatory phases DONE and final acceptance recorded.
 **Mode:** Manual (user-driven phase progression)
 **Started:** 2026-04-27
-**Last Updated:** 2026-05-03 (Phase 13 user gate closed)
+**Last Updated:** 2026-05-03 (completion/final acceptance)
 
 > **Mode note:** PLAN.md L4 declares manual mode. SPEC §11.4 requires each
 > phase to end at a "Direct user feedback (gate)" before the next begins.
@@ -64,6 +64,76 @@
 ## Log
 
 _(Most recent first — reverse chronological)_
+
+### Completion / Final Acceptance — 2026-05-03 DONE
+
+**Mode selected:** `COMPLETION`, per execute-spec orientation.
+
+**Reason:**
+
+- Phases 1-13 are marked `DONE` / user-gated in the phase table.
+- Phase 14 is explicitly optional and was not requested.
+- SPEC/PLAN state points to post-Phase-13 final acceptance.
+
+**Final verification commands:**
+
+- Python:
+  `/opt/homebrew/Caskroom/miniconda/base/bin/python -m pytest
+  resources/scripts/python_single/tests -q -rs`
+  → 175 passed, 0 skipped.
+- Plugin Jest:
+  `npm test -- --runInBand` in `.obsidian/plugins/visual-blocks`
+  → 81 passed, 0 skipped.
+- Plugin build:
+  `npm run build` in `.obsidian/plugins/visual-blocks`
+  → pass.
+- Migration dry-run:
+  `/opt/homebrew/Caskroom/miniconda/base/bin/python
+  resources/scripts/python_single/migrate_to_render_cache.py --dry-run`
+  → 0 SVG moves, 0 markdown updates, 0 legacy deletes, 0 missing SVG refs.
+- Obsidian canary:
+  `node --import tsx run.ts --canary
+  --json=/tmp/visual-blocks-final-canary-2026-05-03.json`
+  in `resources/tests/harness`
+  → PASS, 3/3 assertions, 0 console errors, 0 warnings.
+- Whitespace:
+  `git diff --check` → pass.
+
+**Coverage repair found during completion:**
+
+- The first Python final-suite run reported 169 passed / 6 skipped.
+- Root cause: `tests/test_postprocess.py` slow real-cache probes still used
+  pre-Phase-12 flat cache filenames.
+- Fix: retarget those probes to the migrated Visual Blocks layout under
+  `.obsidian/plugins/visual-blocks/cache/v1/...`.
+- Result: `test_postprocess.py` now runs 43/43 with 0 skips; full Python suite
+  now runs 175/175 with 0 skips.
+- Commit: auto-backup `4d0ee566d` captured the test repair plus unrelated vault
+  runtime files.
+
+**Final acceptance evidence:**
+
+- Desktop rendering, refresh commands, status/error UI, migration, docs, and
+  canary coverage were re-verified by executable checks above.
+- Physical iOS behavior was already user-gated in Phase 11 and Phase 12.
+- Phase 13 README review was user-gated on 2026-05-03.
+- F3 / AC7.5 dark-mode foreground-follow remains an accepted v1 limitation
+  from D8.2: the plugin uses the SPEC-mandated `<img>` resource path, so
+  parent-page `currentColor` cannot propagate into the SVG document. This is
+  documented in the README and package CLAUDE.md; solving it requires a future
+  SPEC amendment to inline `<svg>` rather than `<img>`.
+
+**Git state:**
+
+- Working tree clean after restoring verification-generated cache churn.
+- Latest commits:
+  - `4d0ee566d` — auto-backup captured migrated slow-test coverage repair.
+  - completion log commit follows this entry.
+
+**Outcome:**
+
+- All mandatory phases are complete.
+- Phase 14 remains skipped as optional; no Phase 11/iOS gap triggered it.
 
 ### Phase 13 — User gate closure — 2026-05-03 DONE
 
