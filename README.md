@@ -1,6 +1,6 @@
 # Visual Blocks
 
-**Last Updated:** 2026-05-03  
+**Last Updated:** 2026-05-03
 **Version:** 0.4.0
 
 Visual Blocks turns supported fenced code blocks into cached SVG visuals in

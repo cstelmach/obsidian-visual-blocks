@@ -1,6 +1,6 @@
 # render_cache Package Guide
 
-**Last Updated:** 2026-05-03  
+**Last Updated:** 2026-05-03
 **Version:** 0.2.0 renderer package, Visual Blocks plugin 0.4.0
 
 This package is the canonical renderer for Visual Blocks. It replaces the old

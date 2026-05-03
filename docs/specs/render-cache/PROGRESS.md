@@ -51,7 +51,7 @@
 | Phase 10 — Plugin error display + status bar | DONE — gate closed | 2026-05-01 | 2026-05-01 (obsidian-verify gate) | cfe598614 + Phase 10 log | jest 79/79 ✓ + python 170/170 ✓ + obsidian-verify gate ✓ | ~2h | Python now preserves failed block entries in `index.json` with `lastError`; plugin shows retryable inline error blocks before image/placeholder handling; status bar shows per-note idle/rendering/error state and opens the Phase 9 cache-status modal. Gate closed via isolated obsidian-verify harness: valid note cached image + `✓ 1 item`; broken TikZ note inline LaTeX error + `⚠ 1 failed`; error click retries; status-bar click opens modal; 0 visual-blocks console errors/warnings. |
 | Phase 11 — iOS validation (USER-DRIVEN) | DONE — user-gated | 2026-05-02 07:38 | 2026-05-02 07:51 | 0881a217a (preflight) + 5b4451f15 (gate) + hash record | local preflight ✓; user iOS gate ✓ | ~15m | User reported clean/correct on required phone checks 2, 3, and 4. AC11.1-AC11.4 satisfied: mSB5-2 partial note, original crash trigger, and third representative file loaded correctly on iOS. |
 | Phase 12 — Migration tool: legacy → new layout | DONE — user-gated | 2026-05-02 08:38 | 2026-05-03 (gate closed) | 6a64cc6c3 + 25bb544bc + 65641ef64 + a2e64472b + 00eeb832e + gate log | python 169/169 ✓ + jest 81/81 ✓ + build ✓ + canary ✓ + migration execute ✓ + user re-gate ✓ | | Real migration executed after explicit user approval. 170 SVGs moved to `.obsidian/plugins/visual-blocks/cache/v1/`; 100 markdown files / 169 refs rewritten; 5 PNGs + 3 orphan SVGs deleted; legacy dir removed. Native Obsidian `.obsidian/plugins/...` wikilink resolver messages fixed by CSS wrapper suppression. User re-gate passed 2026-05-03. |
-| Phase 13 — Documentation | DONE (agent) — user gate pending | 2026-05-03 19:37 | 2026-05-03 19:43 | pending | reader test ✓ + jest 81/81 ✓ + python 169/169 ✓ + build ✓ + canary ✓ | ~10m | Added Visual Blocks README, render_cache package CLAUDE.md, root CLAUDE.md canonical pipeline pointer, and this final summary. User gate: read README and confirm it answers likely questions. |
+| Phase 13 — Documentation | DONE (agent) — user gate pending | 2026-05-03 19:37 | 2026-05-03 19:43 | 8ccc0e59a + 291247d6e | reader test ✓ + jest 81/81 ✓ + python 169/169 ✓ + build ✓ + canary ✓ | ~10m | Added Visual Blocks README, render_cache package CLAUDE.md, root CLAUDE.md canonical pipeline pointer, and this final summary. User gate: read README and confirm it answers likely questions. |
 | Phase 14 — gboyd068/SwiftLaTeX hands-on eval | Not Started (optional) | | | | | | OPTIONAL. Skip unless v1 has gaps surfaced during Phase 11. |
 
 **Status values:** Not Started, In Progress, DONE, Blocked, Not Started (optional).
@@ -112,6 +112,14 @@ _(Most recent first — reverse chronological)_
   `resources/tests/harness node --import tsx run.ts --canary
   --json=/tmp/visual-blocks-phase13-canary-2026-05-03.json` →
   PASS, 3/3 assertions, 0 console errors, 0 warnings.
+
+**Commit note:**
+
+- Vault auto-backup captured the Phase 13 documentation and PROGRESS entry as
+  `8ccc0e59a vault backup: 2026-05-03 19:43`, along with unrelated `.omx`,
+  journal, and archive runtime files.
+- Follow-up manual commit `291247d6e` records this hash note and the whitespace
+  cleanup from `git diff --check`.
 
 **Known limitations documented:**
 
