@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 describe("README language-toggle documentation", () => {
@@ -20,5 +20,21 @@ describe("README language-toggle documentation", () => {
 
   it("documents the disabled-library troubleshooting path", () => {
     expect(readme).toContain("A block says the library is disabled");
+  });
+
+  it("documents the screenshot gallery with committed image assets", () => {
+    const expected = [
+      "docs/assets/screenshots/visual-blocks-gallery-rendered.png",
+      "docs/assets/screenshots/visual-blocks-gallery-source.png",
+      "docs/assets/screenshots/visual-blocks-cache-miss.png",
+      "docs/assets/screenshots/visual-blocks-render-error.png",
+      "docs/assets/screenshots/visual-blocks-settings.png",
+      "docs/assets/screenshots/visual-blocks-cache-status.png",
+    ];
+
+    for (const path of expected) {
+      expect(readme).toContain(path);
+      expect(existsSync(resolve(process.cwd(), path))).toBe(true);
+    }
   });
 });

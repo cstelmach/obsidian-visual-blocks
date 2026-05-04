@@ -1,6 +1,6 @@
 # Visual Blocks
 
-**Last Updated:** 2026-05-03
+**Last Updated:** 2026-05-04
 **Version:** 0.5.0
 
 Visual Blocks turns supported fenced code blocks into cached SVG visuals in
@@ -16,6 +16,41 @@ The design is cache-first:
 3. Visual Blocks replaces the code block in reading/live-preview views with the
    cached SVG.
 4. On mobile, the plugin only reads the cache. It never tries to spawn Python.
+
+## Screenshots
+
+These screenshots were captured from an isolated synthetic Obsidian vault. They
+do not contain private notes or live vault cache data.
+
+**Rendered gallery:** one note with cached TikZ, Graphviz, D2, LilyPond, and
+SMILES blocks.
+
+![Rendered Visual Blocks gallery](docs/assets/screenshots/visual-blocks-gallery-rendered.png)
+
+**Source view:** the same note remains editable as ordinary fenced code blocks
+and generated cache refs.
+
+![Visual Blocks source view](docs/assets/screenshots/visual-blocks-gallery-source.png)
+
+**Cache miss:** a supported block that has not been rendered yet shows a clear
+desktop placeholder.
+
+![Visual Blocks cache miss placeholder](docs/assets/screenshots/visual-blocks-cache-miss.png)
+
+**Renderer error:** failed renders are recorded and shown inline instead of
+spinning forever.
+
+![Visual Blocks inline render error](docs/assets/screenshots/visual-blocks-render-error.png)
+
+**Settings:** render mode, language toggles, Python path, script path, and
+desktop save-hook controls.
+
+![Visual Blocks settings](docs/assets/screenshots/visual-blocks-settings.png)
+
+**Cache status:** the command palette status modal summarizes cached blocks,
+disk use, language totals, and captured errors.
+
+![Visual Blocks cache status modal](docs/assets/screenshots/visual-blocks-cache-status.png)
 
 ## Installation
 
