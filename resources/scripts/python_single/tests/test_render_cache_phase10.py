@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-PYTHON_SINGLE = Path("/Users/cs/Obsidian/_/resources/scripts/python_single")
+PYTHON_SINGLE = Path(__file__).resolve().parents[1]
 if str(PYTHON_SINGLE) not in sys.path:
     sys.path.insert(0, str(PYTHON_SINGLE))
 

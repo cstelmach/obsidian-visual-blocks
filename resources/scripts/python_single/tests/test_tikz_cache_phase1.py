@@ -29,12 +29,12 @@ from pathlib import Path
 
 import pytest
 
-ADAPTER = Path("/Users/cs/Obsidian/_/resources/scripts/python_single/render_cache/adapters/tikz.py")
-CLI = Path("/Users/cs/Obsidian/_/resources/scripts/python_single/render_cache.py")
-SMOKE_MD = Path("/Users/cs/Obsidian/_/kn/math/concepts/mSB3-4_reals.md")
-CACHE_DIR = Path(
-    "/Users/cs/Obsidian/_/.obsidian/plugins/visual-blocks/cache/v1"
-)
+PYTHON_SINGLE = Path(__file__).resolve().parents[1]
+REPO_ROOT = PYTHON_SINGLE.parents[2]
+ADAPTER = PYTHON_SINGLE / "render_cache/adapters/tikz.py"
+CLI = PYTHON_SINGLE / "render_cache.py"
+SMOKE_MD = REPO_ROOT / "kn/math/concepts/mSB3-4_reals.md"
+CACHE_DIR = REPO_ROOT / ".obsidian/plugins/visual-blocks/cache/v1"
 
 
 def _strip_docstrings_and_comments(source: str) -> str:

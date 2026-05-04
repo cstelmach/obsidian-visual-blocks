@@ -12,6 +12,19 @@ Use this entry point:
 python resources/scripts/python_single/render_cache.py <note.md>
 ```
 
+Run commands from the vault root. Visual Blocks resolves cache paths from the
+current working directory by default. For standalone development or fixture
+tests, set `VISUAL_BLOCKS_VAULT_ROOT`:
+
+```bash
+VISUAL_BLOCKS_VAULT_ROOT=/path/to/vault \
+  python resources/scripts/python_single/render_cache.py <note.md>
+```
+
+The Obsidian plugin keeps the current deployed behavior: it spawns Python with
+cwd set to the vault root and uses the vault-relative script path
+`resources/scripts/python_single/render_cache.py`.
+
 `resources/scripts/python_single/tikz_cache.py` is only a compatibility shim.
 Do not add new behavior there.
 

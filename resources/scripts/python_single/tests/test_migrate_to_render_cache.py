@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-PYTHON_SINGLE = Path("/Users/cs/Obsidian/_/resources/scripts/python_single")
+PYTHON_SINGLE = Path(__file__).resolve().parents[1]
 if str(PYTHON_SINGLE) not in sys.path:
     sys.path.insert(0, str(PYTHON_SINGLE))
 
@@ -47,7 +47,7 @@ def write_index(path: Path, note_rel: str, legacy_ref: str, key: str) -> None:
 
 
 def test_cache_path_for_rel_uses_plugin_v1_note_layout() -> None:
-    from render_cache.cache_paths import cache_path_for_rel
+    from render_cache.cache_paths import VAULT_ROOT, cache_path_for_rel
 
     path = cache_path_for_rel(
         "kn/math/concepts/mSB3-4_reals.md",
@@ -55,7 +55,7 @@ def test_cache_path_for_rel_uses_plugin_v1_note_layout() -> None:
         key="814d986af7c9302c",
     )
 
-    assert path.relative_to("/Users/cs/Obsidian/_").as_posix() == (
+    assert path.relative_to(VAULT_ROOT).as_posix() == (
         ".obsidian/plugins/visual-blocks/cache/v1/"
         "kn/math/concepts/mSB3-4_reals/0__814d986af7c9302c.svg"
     )

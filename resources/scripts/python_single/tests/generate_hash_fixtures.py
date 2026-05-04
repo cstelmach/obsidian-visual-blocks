@@ -7,7 +7,7 @@ Both sides consume the file:
 - Python  : ``tests/test_hash_fixtures.py`` — re-derives every key, asserts
             equality with ``expectedKey``. Catches a regression in
             ``compute_key`` or ``normalize`` immediately.
-- TypeScript: ``.obsidian/plugins/visual-blocks/tests/hash.test.ts``
+- TypeScript: ``tests/hash.test.ts``
             — ports the same algorithm, asserts byte-identity. Catches
             divergence between Python and the plugin (T12).
 
@@ -30,15 +30,7 @@ sys.path.insert(0, str(REPO_ROOT / "resources" / "scripts" / "python_single"))
 
 from render_cache.hash import compute_key  # noqa: E402
 
-DEFAULT_OUT = (
-    REPO_ROOT
-    / ".obsidian"
-    / "plugins"
-    / "visual-blocks"
-    / "tests"
-    / "fixtures"
-    / "hash_fixtures.json"
-)
+DEFAULT_OUT = REPO_ROOT / "tests" / "fixtures" / "hash_fixtures.json"
 
 # Each fixture targets one normalization/canonicalization rule. Keep names
 # stable — the TS test references them in failure messages.

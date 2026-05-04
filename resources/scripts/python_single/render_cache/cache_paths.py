@@ -10,10 +10,24 @@ defined only for the migration script and rollback/debugging tools.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote
 
-VAULT_ROOT = Path("/Users/cs/Obsidian/_")
+
+def _resolve_vault_root() -> Path:
+    """Return the vault root for this renderer process.
+
+    Visual Blocks normally invokes this script with cwd set to the Obsidian
+    vault root. Standalone development and fixture tests can override that
+    with VISUAL_BLOCKS_VAULT_ROOT.
+    """
+    configured = os.environ.get("VISUAL_BLOCKS_VAULT_ROOT")
+    root = Path(configured).expanduser() if configured else Path.cwd()
+    return root.resolve()
+
+
+VAULT_ROOT = _resolve_vault_root()
 
 # Phase 1-11 legacy cache directory. Phase 12 migrates data out of it.
 LEGACY_CACHE_DIR = VAULT_ROOT / "attachments" / "cache" / "tikz"

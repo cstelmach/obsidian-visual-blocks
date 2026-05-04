@@ -23,10 +23,11 @@ from pathlib import Path
 
 import pytest
 
-PYTHON_SINGLE = Path("/Users/cs/Obsidian/_/resources/scripts/python_single")
+PYTHON_SINGLE = Path(__file__).resolve().parents[1]
+REPO_ROOT = PYTHON_SINGLE.parents[2]
 RENDER_CACHE_PKG = PYTHON_SINGLE / "render_cache"
 RENDER_CACHE_CLI = PYTHON_SINGLE / "render_cache.py"
-SANDBOX_MD = Path("/Users/cs/Obsidian/_/kn/math/concepts/_RENDER_TEST_d2.md")
+SANDBOX_MD = REPO_ROOT / "kn/math/concepts/_RENDER_TEST_d2.md"
 
 # Make the package importable inside the test process.
 if str(PYTHON_SINGLE) not in sys.path:

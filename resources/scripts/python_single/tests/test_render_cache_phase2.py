@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -23,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-PYTHON_SINGLE = Path("/Users/cs/Obsidian/_/resources/scripts/python_single")
+PYTHON_SINGLE = Path(__file__).resolve().parents[1]
 RENDER_CACHE_PKG = PYTHON_SINGLE / "render_cache"
 RENDER_CACHE_CLI = PYTHON_SINGLE / "render_cache.py"
 TIKZ_CACHE_SHIM = PYTHON_SINGLE / "tikz_cache.py"
@@ -65,6 +66,60 @@ def test_package_modules_import_cleanly() -> None:
             continue
         mod = "render_cache." + rel.replace("/", ".").removesuffix(".py")
         importlib.import_module(mod)
+
+
+def test_cache_paths_default_vault_root_is_cwd(tmp_path: Path) -> None:
+    """Standalone default: with no env override, cache paths resolve from cwd."""
+    env = dict(**os.environ)
+    env.pop("VISUAL_BLOCKS_VAULT_ROOT", None)
+    env["PYTHONPATH"] = str(PYTHON_SINGLE)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from render_cache.cache_paths import VAULT_ROOT, CACHE_ROOT; "
+            "print(VAULT_ROOT); print(CACHE_ROOT)",
+        ],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+    vault_root, cache_root = result.stdout.strip().splitlines()
+    assert vault_root == str(tmp_path.resolve())
+    assert cache_root == str(
+        tmp_path.resolve() / ".obsidian/plugins/visual-blocks/cache"
+    )
+
+
+def test_cache_paths_honor_visual_blocks_vault_root(tmp_path: Path) -> None:
+    """Fixture/dev override: VISUAL_BLOCKS_VAULT_ROOT chooses the vault root."""
+    vault = tmp_path / "fixture-vault"
+    vault.mkdir()
+    env = dict(**os.environ)
+    env["VISUAL_BLOCKS_VAULT_ROOT"] = str(vault)
+    env["PYTHONPATH"] = str(PYTHON_SINGLE)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from render_cache.cache_paths import VAULT_ROOT, INDEX_PATH; "
+            "print(VAULT_ROOT); print(INDEX_PATH)",
+        ],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+    vault_root, index_path = result.stdout.strip().splitlines()
+    assert vault_root == str(vault.resolve())
+    assert index_path == str(
+        vault.resolve() / ".obsidian/plugins/visual-blocks/cache/index.json"
+    )
 
 
 # ---------------------------------------------------------------------------
