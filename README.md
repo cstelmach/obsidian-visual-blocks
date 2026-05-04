@@ -19,7 +19,11 @@ The design is cache-first:
 
 ## Installation
 
-This plugin is installed directly in this vault:
+This repository is the source of truth for the Visual Blocks plugin. Deploy
+runtime files into an Obsidian vault; do not symlink the plugin folder because
+the cache must stay inside the vault for sync and mobile use.
+
+In the vault, the plugin is installed at:
 
 ```text
 .obsidian/plugins/visual-blocks/
@@ -35,6 +39,37 @@ To enable it:
 
 The plugin is mobile-capable (`isDesktopOnly: false`), but rendering commands
 only work on desktop because they call Python.
+
+## Deploy To A Vault
+
+Build the plugin first:
+
+```bash
+npm run build
+```
+
+Review the deploy plan:
+
+```bash
+scripts/deploy-to-vault.sh --dry-run /Users/cs/Obsidian/_
+```
+
+Run the deploy after reviewing the dry-run:
+
+```bash
+scripts/deploy-to-vault.sh /Users/cs/Obsidian/_
+```
+
+The deploy copies plugin runtime files and Python renderer files only. It never
+copies or deletes:
+
+- `.obsidian/plugins/visual-blocks/cache/`
+- `.obsidian/plugins/visual-blocks/data.json`
+- `.obsidian/plugins/visual-blocks/node_modules/`
+
+After deployment, reload the Visual Blocks plugin in Obsidian and open a note
+with a known cached TikZ or D2 block. The cache should remain under
+`.obsidian/plugins/visual-blocks/cache/` inside the vault.
 
 ## Supported Languages
 
@@ -248,14 +283,12 @@ by the migration/markdown helpers, but new refs should use `visual-blocks`.
 Run plugin tests:
 
 ```bash
-cd .obsidian/plugins/visual-blocks
 npm test -- --runInBand
 ```
 
 Build the plugin:
 
 ```bash
-cd .obsidian/plugins/visual-blocks
 npm run build
 ```
 
@@ -268,3 +301,12 @@ Run the Python renderer tests:
 
 After editing `.obsidian/plugins/visual-blocks/`, run the Obsidian harness
 or canary scenario before claiming the plugin still loads cleanly.
+
+When running the Python renderer outside a vault root, set
+`VISUAL_BLOCKS_VAULT_ROOT`:
+
+```bash
+VISUAL_BLOCKS_VAULT_ROOT=/Users/cs/Obsidian/_ \
+  /opt/homebrew/Caskroom/miniconda/base/bin/python \
+  resources/scripts/python_single/render_cache.py --all --dry-run
+```
