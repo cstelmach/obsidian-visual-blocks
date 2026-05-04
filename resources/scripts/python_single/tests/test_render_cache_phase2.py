@@ -122,6 +122,38 @@ def test_cache_paths_honor_visual_blocks_vault_root(tmp_path: Path) -> None:
     )
 
 
+def test_cli_relative_path_resolves_against_configured_vault_root(
+    tmp_path: Path,
+) -> None:
+    """A standalone invocation can target a vault with a relative note path."""
+    vault = tmp_path / "fixture-vault"
+    note = vault / "kn/math/concepts/example.md"
+    note.parent.mkdir(parents=True)
+    note.write_text("```d2\na -> b\n```\n", encoding="utf-8")
+
+    env = dict(**os.environ)
+    env["VISUAL_BLOCKS_VAULT_ROOT"] = str(vault)
+    env["PYTHONPATH"] = str(PYTHON_SINGLE)
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(RENDER_CACHE_CLI),
+            "kn/math/concepts/example.md",
+            "--dry-run",
+            "--languages",
+            "d2",
+        ],
+        cwd=PYTHON_SINGLE.parents[2],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "=> kn/math/concepts/example.md: 1 block(s)" in result.stdout
+    assert "would render" in result.stdout
+
+
 # ---------------------------------------------------------------------------
 # Behavior tier — normalize.
 

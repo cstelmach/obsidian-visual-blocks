@@ -358,7 +358,7 @@ def main(argv: list[str] | None = None) -> int:
 
     md_path = Path(args.path)
     if not md_path.is_absolute():
-        md_path = (Path.cwd() / md_path).resolve()
+        md_path = (VAULT_ROOT / md_path).resolve()
     return 1 if process_file(
         md_path,
         force=args.force,
