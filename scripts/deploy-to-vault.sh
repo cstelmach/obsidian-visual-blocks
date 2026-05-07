@@ -88,6 +88,7 @@ copy_file "$REPO_ROOT/manifest.json" "$PLUGIN_DEST/manifest.json"
 copy_file "$REPO_ROOT/main.js" "$PLUGIN_DEST/main.js"
 copy_file "$REPO_ROOT/styles.css" "$PLUGIN_DEST/styles.css"
 copy_file "$REPO_ROOT/README.md" "$PLUGIN_DEST/README.md"
+copy_tree "$REPO_ROOT/docs/assets" "$PLUGIN_DEST/docs/assets"
 
 copy_file \
   "$REPO_ROOT/resources/scripts/python_single/render_cache.py" \

@@ -18,6 +18,11 @@ describe("README language-toggle documentation", () => {
     expect(readme).toContain("direct terminal commands process all supported languages");
   });
 
+  it("documents opt-in startup auto-refresh as changed-only", () => {
+    expect(readme).toContain("Refresh changed blocks after desktop startup");
+    expect(readme).toContain("runs `render_cache.py --all` without `--force`");
+  });
+
   it("documents the disabled-library troubleshooting path", () => {
     expect(readme).toContain("A block says the library is disabled");
   });

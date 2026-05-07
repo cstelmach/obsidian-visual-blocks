@@ -1,7 +1,7 @@
 # Visual Blocks
 
-**Last Updated:** 2026-05-04
-**Version:** 0.5.0
+**Last Updated:** 2026-05-07
+**Version:** 0.6.0
 
 Visual Blocks turns supported fenced code blocks into cached SVG visuals in
 Obsidian. Rendering is done by the Python pipeline at
@@ -42,8 +42,8 @@ spinning forever.
 
 ![Visual Blocks inline render error](docs/assets/screenshots/visual-blocks-render-error.png)
 
-**Settings:** render mode, language toggles, Python path, script path, and
-desktop save-hook controls.
+**Settings:** render mode, language toggles, Python path, script path, desktop
+save-hook controls, and optional startup refresh.
 
 ![Visual Blocks settings](docs/assets/screenshots/visual-blocks-settings.png)
 
@@ -150,6 +150,9 @@ Open Settings -> Community plugins -> Visual Blocks.
 | Python path | `python3` | Python executable used for render commands |
 | Script path | `resources/scripts/python_single/render_cache.py` | Vault-relative renderer script |
 | Re-render on save | On | Desktop save hook for supported blocks |
+| Refresh changed blocks after desktop startup | Off | Opt-in delayed `--all` scan for changed cache entries |
+| Startup refresh delay | `300` seconds | Wait time before the startup scan begins |
+| Startup refresh cooldown | `6` hours | Minimum interval between startup scans |
 | Spawn through login shell | On | Uses `$SHELL -lc` to inherit Homebrew/conda paths |
 
 The visualization-library toggles let you disable renderers you are not using.
@@ -168,6 +171,12 @@ has usually been:
 ```text
 /opt/homebrew/Caskroom/miniconda/base/bin/python
 ```
+
+Startup auto-refresh is intentionally opt-in. When enabled on desktop, Visual
+Blocks waits for the configured delay, then runs `render_cache.py --all` without `--force`.
+That scans the vault and renders only missing, stale, or previously failed blocks.
+It does not rewrite already-current SVGs, which keeps phone sync quieter than
+`Refresh entire vault`.
 
 ## Render Modes
 

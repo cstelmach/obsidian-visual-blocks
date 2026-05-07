@@ -67,6 +67,11 @@ import {
   aggregateStatus,
   statusBarText,
 } from "./cacheStatus";
+import {
+  shouldRunStartupAutoRefresh,
+  startupAutoRefreshArgs,
+  startupAutoRefreshDelayMs,
+} from "./startup";
 
 const LANGUAGES: LanguageId[] = VISUAL_BLOCK_LANGUAGES.map((l) => l.id);
 const FENCE_LANGUAGES = VISUAL_BLOCK_LANGUAGES.flatMap((l) => l.fences);
@@ -164,6 +169,8 @@ export default class RenderCachePlugin extends Plugin {
         void this.maybeReRenderOnSave(file);
       }),
     );
+
+    this.scheduleStartupAutoRefresh();
 
     console.log(
       `visual-blocks: loaded; processors registered for ${FENCE_LANGUAGES.join(", ")}; ` +
@@ -477,6 +484,58 @@ export default class RenderCachePlugin extends Plugin {
       console.warn("visual-blocks: triggerOnSave spawn failed", err);
     } finally {
       this.setRendering(path, false);
+    }
+  }
+
+  // ─── startup auto-refresh ─────────────────────────────────────────────
+
+  private scheduleStartupAutoRefresh(): void {
+    const decision = shouldRunStartupAutoRefresh(
+      this.settings,
+      Platform.isMobile,
+      Date.now(),
+    );
+    if (!decision.shouldRun) return;
+
+    const delayMs = startupAutoRefreshDelayMs(this.settings);
+    const timeoutId = window.setTimeout(() => {
+      void this.runStartupAutoRefresh();
+    }, delayMs);
+    this.registerInterval(timeoutId);
+  }
+
+  private async runStartupAutoRefresh(): Promise<void> {
+    const decision = shouldRunStartupAutoRefresh(
+      this.settings,
+      Platform.isMobile,
+      Date.now(),
+    );
+    if (!decision.shouldRun) return;
+
+    const args = startupAutoRefreshArgs(this.settings);
+    if (!args) return;
+
+    this.setRendering("__vault__", true);
+    console.log("visual-blocks: startup auto-refresh started");
+    try {
+      const result = await spawnRender(this.settings, args, this.vaultRoot());
+      this.settings.startupRefreshLastRunAt = Date.now();
+      await this.saveSettings();
+      await this.reloadIndex();
+      if (result.exitCode === 0) {
+        console.log("visual-blocks: startup auto-refresh complete");
+      } else {
+        console.warn(
+          `visual-blocks: startup auto-refresh exited ${result.exitCode}.\n` +
+            (result.stderr.trim().slice(0, 800) ||
+              result.stdout.trim().slice(0, 800) ||
+              "(no diagnostic)"),
+        );
+      }
+    } catch (err) {
+      console.warn("visual-blocks: startup auto-refresh spawn failed", err);
+    } finally {
+      this.setRendering("__vault__", false);
     }
   }
 

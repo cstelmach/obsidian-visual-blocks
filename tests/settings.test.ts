@@ -105,12 +105,16 @@ describe("isPlaceholderClickable", () => {
 });
 
 describe("DEFAULT_SETTINGS shape", () => {
-  it("has exactly the 6 documented keys", () => {
+  it("has exactly the documented keys", () => {
     expect(Object.keys(DEFAULT_SETTINGS).sort()).toEqual([
+      "autoRefreshOnStartup",
       "enabledLanguages",
       "mode",
       "pythonPath",
       "scriptPath",
+      "startupRefreshDelaySeconds",
+      "startupRefreshLastRunAt",
+      "startupRefreshMinIntervalHours",
       "triggerOnSave",
       "useLoginShell",
     ]);
@@ -136,6 +140,13 @@ describe("DEFAULT_SETTINGS shape", () => {
 
   it("default useLoginShell is true (macOS PATH inheritance)", () => {
     expect(DEFAULT_SETTINGS.useLoginShell).toBe(true);
+  });
+
+  it("startup auto-refresh is opt-in with a 5 minute delay and 6 hour cooldown", () => {
+    expect(DEFAULT_SETTINGS.autoRefreshOnStartup).toBe(false);
+    expect(DEFAULT_SETTINGS.startupRefreshDelaySeconds).toBe(300);
+    expect(DEFAULT_SETTINGS.startupRefreshMinIntervalHours).toBe(6);
+    expect(DEFAULT_SETTINGS.startupRefreshLastRunAt).toBeNull();
   });
 
   it("defaults every visualization library to enabled", () => {

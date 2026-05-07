@@ -8,6 +8,7 @@
  *                       NOT inherit the user's shell PATH on macOS)
  *   • scriptPath      — vault-relative path to render_cache.py
  *   • triggerOnSave   — desktop only; re-render on file modify
+ *   • autoRefreshOnStartup — desktop only; delayed changed-only vault scan
  *   • useLoginShell   — macOS only; spawn through `$SHELL -lc` to inherit
  *                       the user's PATH (homebrew, conda init, etc.)
  *
@@ -38,6 +39,10 @@ export interface RenderCacheSettings {
   pythonPath: string;
   scriptPath: string;
   triggerOnSave: boolean;
+  autoRefreshOnStartup: boolean;
+  startupRefreshDelaySeconds: number;
+  startupRefreshMinIntervalHours: number;
+  startupRefreshLastRunAt: number | null;
   useLoginShell: boolean;
 }
 
@@ -47,6 +52,10 @@ export const DEFAULT_SETTINGS: RenderCacheSettings = {
   pythonPath: "python3",
   scriptPath: "resources/scripts/python_single/render_cache.py",
   triggerOnSave: true,
+  autoRefreshOnStartup: false,
+  startupRefreshDelaySeconds: 300,
+  startupRefreshMinIntervalHours: 6,
+  startupRefreshLastRunAt: null,
   useLoginShell: true,
 };
 
@@ -101,11 +110,35 @@ export function isPlaceholderClickable(
 export function normalizeSettings(
   raw: Partial<RenderCacheSettings> | null | undefined,
 ): RenderCacheSettings {
+  const delay = normalizeNonNegativeNumber(
+    raw?.startupRefreshDelaySeconds,
+    DEFAULT_SETTINGS.startupRefreshDelaySeconds,
+  );
+  const minInterval = normalizeNonNegativeNumber(
+    raw?.startupRefreshMinIntervalHours,
+    DEFAULT_SETTINGS.startupRefreshMinIntervalHours,
+  );
+  const lastRun =
+    typeof raw?.startupRefreshLastRunAt === "number" &&
+    Number.isFinite(raw.startupRefreshLastRunAt)
+      ? raw.startupRefreshLastRunAt
+      : null;
+
   return {
     ...DEFAULT_SETTINGS,
     ...(raw ?? {}),
     enabledLanguages: normalizeEnabledLanguages(raw?.enabledLanguages),
+    startupRefreshDelaySeconds: delay,
+    startupRefreshMinIntervalHours: minInterval,
+    startupRefreshLastRunAt: lastRun,
   };
+}
+
+function normalizeNonNegativeNumber(raw: unknown, fallback: number): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0) {
+    return fallback;
+  }
+  return raw;
 }
 
 export class RenderCacheSettingTab extends PluginSettingTab {
@@ -214,6 +247,58 @@ export class RenderCacheSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Refresh changed blocks after desktop startup")
+      .setDesc(
+        "Opt-in. Desktop only. After the delay below, runs render_cache.py " +
+          "--all without --force, so only missing, stale, or failed blocks " +
+          "are rendered.",
+      )
+      .addToggle((t) =>
+        t
+          .setValue(this.plugin.settings.autoRefreshOnStartup)
+          .onChange(async (v) => {
+            this.plugin.settings.autoRefreshOnStartup = v;
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Startup refresh delay (seconds)")
+      .setDesc("Default: 300 seconds. Gives sync services time to settle.")
+      .addText((t) =>
+        t
+          .setPlaceholder("300")
+          .setValue(String(this.plugin.settings.startupRefreshDelaySeconds))
+          .onChange(async (v) => {
+            this.plugin.settings.startupRefreshDelaySeconds =
+              parseNonNegativeSetting(
+                v,
+                DEFAULT_SETTINGS.startupRefreshDelaySeconds,
+              );
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Startup refresh cooldown (hours)")
+      .setDesc(
+        "Default: 6 hours. Prevents repeated full-vault scans across restarts.",
+      )
+      .addText((t) =>
+        t
+          .setPlaceholder("6")
+          .setValue(String(this.plugin.settings.startupRefreshMinIntervalHours))
+          .onChange(async (v) => {
+            this.plugin.settings.startupRefreshMinIntervalHours =
+              parseNonNegativeSetting(
+                v,
+                DEFAULT_SETTINGS.startupRefreshMinIntervalHours,
+              );
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
       .setName("Spawn through login shell ($SHELL -lc)")
       .setDesc(
         "Recommended on macOS. Electron renderer process doesn't inherit " +
@@ -229,4 +314,10 @@ export class RenderCacheSettingTab extends PluginSettingTab {
           }),
       );
   }
+}
+
+function parseNonNegativeSetting(value: string, fallback: number): number {
+  const parsed = Number(value.trim());
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return parsed;
 }
