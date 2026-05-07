@@ -28,7 +28,10 @@
  * uses this to surface real-time progress in a Notice.
  */
 import { Notice } from "obsidian";
-import type { RenderCacheSettings } from "./settings";
+import {
+  cacheRootPath,
+  type RenderCacheSettings,
+} from "./settings";
 
 export interface SpawnArgs {
   command: string;
@@ -68,6 +71,16 @@ export function buildSpawnArgs(
   return { command: shell, args: ["-lc", cmdLine] };
 }
 
+export function buildSpawnEnv(
+  settings: RenderCacheSettings,
+  baseEnv: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  return {
+    ...baseEnv,
+    VISUAL_BLOCKS_CACHE_ROOT: cacheRootPath(settings),
+  };
+}
+
 /** Spawn the render command. Resolves with stdout text + exit code; rejects
  *  on spawn-level failure (ENOENT, etc.). Streams lines via onLine if given. */
 export interface SpawnResult {
@@ -93,7 +106,7 @@ export async function spawnRender(
   return new Promise((resolve, reject) => {
     const child = child_process.spawn(command, args, {
       cwd,
-      env: { ...process.env },
+      env: buildSpawnEnv(settings),
       stdio: ["ignore", "pipe", "pipe"],
     });
 

@@ -17,7 +17,7 @@
  * For each registered language the plugin:
  *   1. Computes the canonical 16-char SHA-256 cache key from the block
  *      source (see hash.ts; byte-identical to Python compute_key per T12).
- *   2. Looks up the entry in .obsidian/plugins/visual-blocks/cache/index.json by
+ *   2. Looks up the entry in the configured Visual Blocks cache index by
  *      sourceHash (advisor: first match wins; identical-source duplicates
  *      have identical cached SVGs).
  *   3. Mode-aware behavior:
@@ -47,7 +47,9 @@ import {
   DEFAULT_SETTINGS,
   RenderCacheSettings,
   RenderCacheSettingTab,
+  cacheRootPath,
   effectiveMode,
+  indexPath,
   isPlaceholderClickable,
   missMessage,
   normalizeSettings,
@@ -75,9 +77,6 @@ import {
 
 const LANGUAGES: LanguageId[] = VISUAL_BLOCK_LANGUAGES.map((l) => l.id);
 const FENCE_LANGUAGES = VISUAL_BLOCK_LANGUAGES.flatMap((l) => l.fences);
-
-const CACHE_ROOT = ".obsidian/plugins/visual-blocks/cache";
-const INDEX_PATH = `${CACHE_ROOT}/index.json`;
 
 interface BlockEntry {
   blockIdx: number;
@@ -119,8 +118,8 @@ export default class RenderCachePlugin extends Plugin {
       getIndex: () => this.index,
       setRendering: (sourcePath, rendering) =>
         this.setRendering(sourcePath, rendering),
-      cacheRoot: CACHE_ROOT,
-      indexPath: INDEX_PATH,
+      cacheRoot: () => this.cacheRoot(),
+      indexPath: () => this.indexPath(),
     };
 
     this.statusBarEl = this.addStatusBarItem();
@@ -174,7 +173,8 @@ export default class RenderCachePlugin extends Plugin {
 
     console.log(
       `visual-blocks: loaded; processors registered for ${FENCE_LANGUAGES.join(", ")}; ` +
-        `mode=${this.settings.mode}; triggerOnSave=${this.settings.triggerOnSave}`,
+        `mode=${this.settings.mode}; triggerOnSave=${this.settings.triggerOnSave}; ` +
+        `cacheRoot=${this.cacheRoot()}`,
     );
   }
 
@@ -197,12 +197,12 @@ export default class RenderCachePlugin extends Plugin {
 
   async reloadIndex(): Promise<void> {
     try {
-      const exists = await this.app.vault.adapter.exists(INDEX_PATH);
+      const exists = await this.app.vault.adapter.exists(this.indexPath());
       if (!exists) {
         this.index = null;
         return;
       }
-      const text = await this.app.vault.adapter.read(INDEX_PATH);
+      const text = await this.app.vault.adapter.read(this.indexPath());
       this.index = JSON.parse(text) as IndexFile;
     } catch (err) {
       console.error("visual-blocks: failed to load index", err);
@@ -579,5 +579,13 @@ export default class RenderCachePlugin extends Plugin {
     }
     // Mobile path — should never spawn here per AC9.9 mobile auto-override.
     return "";
+  }
+
+  private cacheRoot(): string {
+    return cacheRootPath(this.settings);
+  }
+
+  private indexPath(): string {
+    return indexPath(this.settings);
   }
 }

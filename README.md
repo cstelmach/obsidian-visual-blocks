@@ -12,7 +12,7 @@ The design is cache-first:
 
 1. You write a supported fenced code block in a note.
 2. `render_cache.py` renders it to an SVG under
-   `.obsidian/plugins/visual-blocks/cache/v1/`.
+   `resources/data/cache/visual-blocks/v1/`.
 3. Visual Blocks replaces the code block in reading/live-preview views with the
    cached SVG.
 4. On mobile, the plugin only reads the cache. It never tries to spawn Python.
@@ -99,12 +99,13 @@ The deploy copies plugin runtime files and Python renderer files only. It never
 copies or deletes:
 
 - `.obsidian/plugins/visual-blocks/cache/`
+- `resources/data/cache/visual-blocks/`
 - `.obsidian/plugins/visual-blocks/data.json`
 - `.obsidian/plugins/visual-blocks/node_modules/`
 
 After deployment, reload the Visual Blocks plugin in Obsidian and open a note
 with a known cached TikZ or D2 block. The cache should remain under
-`.obsidian/plugins/visual-blocks/cache/` inside the vault.
+`resources/data/cache/visual-blocks/` inside the vault.
 
 ## Supported Languages
 
@@ -133,7 +134,7 @@ api -> queue -> store
 After rendering, the note also contains a durable cache reference:
 
 ```markdown
-![[.obsidian/plugins/visual-blocks/cache/v1/path/to/note/0__HASH.svg|visual-blocks]]
+![[resources/data/cache/visual-blocks/v1/path/to/note/0__HASH.svg|visual-blocks]]
 ```
 
 Visual Blocks hides Obsidian's native rendering of that cache reference and
@@ -149,6 +150,7 @@ Open Settings -> Community plugins -> Visual Blocks.
 | Visualization libraries | All on | Per-language toggles for TikZ, Graphviz, D2, LilyPond, and SMILES |
 | Python path | `python3` | Python executable used for render commands |
 | Script path | `resources/scripts/python_single/render_cache.py` | Vault-relative renderer script |
+| Cache folder | `resources/data/cache/visual-blocks` | Vault-relative cache root; keep available offline on mobile |
 | Re-render on save | On | Desktop save hook for supported blocks |
 | Refresh changed blocks after desktop startup | Off | Opt-in delayed `--all` scan for changed cache entries |
 | Startup refresh delay | `300` seconds | Wait time before the startup scan begins |
@@ -270,7 +272,7 @@ mobile, open the note on desktop to retry.
 Canonical cache files live here:
 
 ```text
-.obsidian/plugins/visual-blocks/cache/
+resources/data/cache/visual-blocks/
 |-- index.json
 `-- v1/
     `-- <vault-relative-note-path-without-.md>/

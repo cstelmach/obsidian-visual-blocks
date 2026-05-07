@@ -38,6 +38,7 @@ export interface RenderCacheSettings {
   enabledLanguages: EnabledLanguages;
   pythonPath: string;
   scriptPath: string;
+  cacheRootPath: string;
   triggerOnSave: boolean;
   autoRefreshOnStartup: boolean;
   startupRefreshDelaySeconds: number;
@@ -51,6 +52,7 @@ export const DEFAULT_SETTINGS: RenderCacheSettings = {
   enabledLanguages: { ...DEFAULT_ENABLED_LANGUAGES },
   pythonPath: "python3",
   scriptPath: "resources/scripts/python_single/render_cache.py",
+  cacheRootPath: "resources/data/cache/visual-blocks",
   triggerOnSave: true,
   autoRefreshOnStartup: false,
   startupRefreshDelaySeconds: 300,
@@ -128,10 +130,35 @@ export function normalizeSettings(
     ...DEFAULT_SETTINGS,
     ...(raw ?? {}),
     enabledLanguages: normalizeEnabledLanguages(raw?.enabledLanguages),
+    cacheRootPath: normalizeCacheRootPath(raw?.cacheRootPath),
     startupRefreshDelaySeconds: delay,
     startupRefreshMinIntervalHours: minInterval,
     startupRefreshLastRunAt: lastRun,
   };
+}
+
+export function cacheRootPath(settings: RenderCacheSettings): string {
+  return normalizeCacheRootPath(settings.cacheRootPath);
+}
+
+export function indexPath(settings: RenderCacheSettings): string {
+  return `${cacheRootPath(settings)}/index.json`;
+}
+
+export function normalizeCacheRootPath(raw: unknown): string {
+  if (typeof raw !== "string") return DEFAULT_SETTINGS.cacheRootPath;
+  const normalized = raw
+    .trim()
+    .replace(/\\/g, "/")
+    .replace(/\/+/g, "/")
+    .replace(/\/+$/g, "");
+  if (!normalized) return DEFAULT_SETTINGS.cacheRootPath;
+  if (normalized.startsWith("/")) return DEFAULT_SETTINGS.cacheRootPath;
+  if (/^[A-Za-z]:\//.test(normalized)) return DEFAULT_SETTINGS.cacheRootPath;
+  if (normalized.split("/").includes("..")) {
+    return DEFAULT_SETTINGS.cacheRootPath;
+  }
+  return normalized;
 }
 
 function normalizeNonNegativeNumber(raw: unknown, fallback: number): number {
@@ -228,6 +255,23 @@ export class RenderCacheSettingTab extends PluginSettingTab {
             this.plugin.settings.scriptPath =
               v.trim() || DEFAULT_SETTINGS.scriptPath;
             await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Cache folder (vault-relative)")
+      .setDesc(
+        "Vault-relative folder containing index.json and v1/. Keep this " +
+          "available offline on mobile. Default: resources/data/cache/visual-blocks.",
+      )
+      .addText((t) =>
+        t
+          .setPlaceholder(DEFAULT_SETTINGS.cacheRootPath)
+          .setValue(this.plugin.settings.cacheRootPath)
+          .onChange(async (v) => {
+            this.plugin.settings.cacheRootPath = normalizeCacheRootPath(v);
+            await this.plugin.saveSettings();
+            await this.plugin.reloadIndex();
           }),
       );
 

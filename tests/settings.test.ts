@@ -10,7 +10,9 @@ import {
   DEFAULT_SETTINGS,
   MODE_CYCLE,
   RenderMode,
+  cacheRootPath,
   effectiveMode,
+  indexPath,
   isPlaceholderClickable,
   missMessage,
   nextMode,
@@ -108,6 +110,7 @@ describe("DEFAULT_SETTINGS shape", () => {
   it("has exactly the documented keys", () => {
     expect(Object.keys(DEFAULT_SETTINGS).sort()).toEqual([
       "autoRefreshOnStartup",
+      "cacheRootPath",
       "enabledLanguages",
       "mode",
       "pythonPath",
@@ -131,6 +134,12 @@ describe("DEFAULT_SETTINGS shape", () => {
   it("default scriptPath is the canonical render_cache.py location", () => {
     expect(DEFAULT_SETTINGS.scriptPath).toBe(
       "resources/scripts/python_single/render_cache.py",
+    );
+  });
+
+  it("default cacheRootPath is the sync-friendly vault data folder", () => {
+    expect(DEFAULT_SETTINGS.cacheRootPath).toBe(
+      "resources/data/cache/visual-blocks",
     );
   });
 
@@ -190,5 +199,49 @@ describe("normalizeSettings", () => {
       "tikz",
     ]);
     expect(normalized.enabledLanguages.lilypond).toBe(false);
+  });
+
+  it("preserves a valid vault-relative cacheRootPath", () => {
+    const normalized = normalizeSettings({
+      cacheRootPath: "resources/data/cache/custom-visual-blocks",
+    });
+    expect(normalized.cacheRootPath).toBe(
+      "resources/data/cache/custom-visual-blocks",
+    );
+  });
+
+  it("normalizes slashes and trims a valid cacheRootPath", () => {
+    const normalized = normalizeSettings({
+      cacheRootPath: " resources\\\\data//cache/visual-blocks/ ",
+    });
+    expect(normalized.cacheRootPath).toBe(
+      "resources/data/cache/visual-blocks",
+    );
+  });
+
+  it("rejects empty, absolute, and parent-traversing cacheRootPath values", () => {
+    expect(normalizeSettings({ cacheRootPath: "" }).cacheRootPath).toBe(
+      DEFAULT_SETTINGS.cacheRootPath,
+    );
+    expect(normalizeSettings({ cacheRootPath: "/tmp/cache" }).cacheRootPath).toBe(
+      DEFAULT_SETTINGS.cacheRootPath,
+    );
+    expect(
+      normalizeSettings({ cacheRootPath: "resources/../cache" }).cacheRootPath,
+    ).toBe(DEFAULT_SETTINGS.cacheRootPath);
+  });
+});
+
+describe("cache path helpers", () => {
+  it("derives cache root and index path from settings", () => {
+    const settings = normalizeSettings({
+      cacheRootPath: "resources/data/cache/custom-visual-blocks",
+    });
+    expect(cacheRootPath(settings)).toBe(
+      "resources/data/cache/custom-visual-blocks",
+    );
+    expect(indexPath(settings)).toBe(
+      "resources/data/cache/custom-visual-blocks/index.json",
+    );
   });
 });

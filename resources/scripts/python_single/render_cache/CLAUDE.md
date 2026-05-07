@@ -1,7 +1,7 @@
 # render_cache Package Guide
 
-**Last Updated:** 2026-05-03
-**Version:** 0.2.0 renderer package, Visual Blocks plugin 0.5.0
+**Last Updated:** 2026-05-07
+**Version:** 0.2.0 renderer package, Visual Blocks plugin 0.6.0
 
 This package is the canonical renderer for Visual Blocks. It replaces the old
 single-purpose `tikz_cache.py` workflow with a multi-language cache pipeline.
@@ -21,9 +21,14 @@ VISUAL_BLOCKS_VAULT_ROOT=/path/to/vault \
   python resources/scripts/python_single/render_cache.py <note.md>
 ```
 
+The cache root defaults to `resources/data/cache/visual-blocks` inside the
+vault. For fixture tests or custom plugin settings, set
+`VISUAL_BLOCKS_CACHE_ROOT` to either a vault-relative path or an absolute path.
+
 The Obsidian plugin keeps the current deployed behavior: it spawns Python with
-cwd set to the vault root and uses the vault-relative script path
-`resources/scripts/python_single/render_cache.py`.
+cwd set to the vault root, uses the vault-relative script path
+`resources/scripts/python_single/render_cache.py`, and passes
+`VISUAL_BLOCKS_CACHE_ROOT` from the plugin setting.
 
 `resources/scripts/python_single/tikz_cache.py` is only a compatibility shim.
 Do not add new behavior there.
@@ -37,7 +42,7 @@ Do not add new behavior there.
 - computing the canonical 16-character SHA-256 cache key
 - dispatching each block to the correct renderer adapter
 - post-processing raw SVGs for Obsidian/iOS safety
-- writing `.obsidian/plugins/visual-blocks/cache/index.json`
+- writing `resources/data/cache/visual-blocks/index.json`
 - inserting or updating `![[...|visual-blocks]]` markdown refs
 - preserving failed render entries with `lastError`
 - sweeping stale cache files
@@ -69,7 +74,7 @@ Key modules:
 | `normalize.py` | Canonical source normalization before hashing |
 | `hash.py` | SPEC cache-key formula and preamble digest |
 | `markdown_io.py` | Supported fence extraction and cache-ref matching |
-| `cache_paths.py` | Plugin-managed cache layout helpers |
+| `cache_paths.py` | Sync-friendly cache layout helpers |
 | `index.py` | Atomic `index.json` read/write helpers |
 | `postprocess.py` | SVG hardening rules |
 | `adapters/base.py` | `RendererAdapter` contract and `RenderError` |
@@ -96,14 +101,14 @@ For each supported block, `process_file()`:
 1. Looks up the adapter by canonical language.
 2. Computes `preamble_hash = preamble_digest(adapter.preamble_text)`.
 3. Computes `key = compute_key(source, language, attrs, preamble_hash)`.
-4. Resolves the target path under `.obsidian/plugins/visual-blocks/cache/v1/`.
+4. Resolves the target path under `resources/data/cache/visual-blocks/v1/`.
 5. Renders when `--force` is set or the target SVG does not exist.
 6. Applies SVG post-processing before writing the cache file.
 7. Records block metadata in `index.json`.
 8. Inserts or rewrites the following markdown ref:
 
 ```markdown
-![[.obsidian/plugins/visual-blocks/cache/v1/.../<idx>__<hash>.svg|visual-blocks]]
+![[resources/data/cache/visual-blocks/v1/.../<idx>__<hash>.svg|visual-blocks]]
 ```
 
 If a renderer raises `RenderError`, the dispatcher records a block entry with
@@ -176,18 +181,18 @@ styles.
 
 ## Cache Layout
 
-Canonical Phase 12+ paths are defined in `cache_paths.py`:
+Canonical paths are defined in `cache_paths.py`:
 
 ```text
-.obsidian/plugins/visual-blocks/cache/
+resources/data/cache/visual-blocks/
 |-- index.json
 `-- v1/
     `-- <vault-relative-note-path-without-.md>/
         `-- <zero-based-block-index>__<16-char-source-hash>.svg
 ```
 
-The old `attachments/cache/tikz/` constants remain only for migration,
-rollback, and debugging helpers.
+The old `attachments/cache/tikz/` and `.obsidian/plugins/visual-blocks/cache/`
+constants remain only for migration, rollback, and debugging helpers.
 
 ## Commands
 

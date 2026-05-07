@@ -90,7 +90,7 @@ def test_cache_paths_default_vault_root_is_cwd(tmp_path: Path) -> None:
     vault_root, cache_root = result.stdout.strip().splitlines()
     assert vault_root == str(tmp_path.resolve())
     assert cache_root == str(
-        tmp_path.resolve() / ".obsidian/plugins/visual-blocks/cache"
+        tmp_path.resolve() / "resources/data/cache/visual-blocks"
     )
 
 
@@ -118,7 +118,38 @@ def test_cache_paths_honor_visual_blocks_vault_root(tmp_path: Path) -> None:
     vault_root, index_path = result.stdout.strip().splitlines()
     assert vault_root == str(vault.resolve())
     assert index_path == str(
-        vault.resolve() / ".obsidian/plugins/visual-blocks/cache/index.json"
+        vault.resolve() / "resources/data/cache/visual-blocks/index.json"
+    )
+
+
+def test_cache_paths_honor_visual_blocks_cache_root(tmp_path: Path) -> None:
+    """VISUAL_BLOCKS_CACHE_ROOT chooses the cache root under the vault."""
+    vault = tmp_path / "fixture-vault"
+    vault.mkdir()
+    env = dict(**os.environ)
+    env["VISUAL_BLOCKS_VAULT_ROOT"] = str(vault)
+    env["VISUAL_BLOCKS_CACHE_ROOT"] = "resources/data/cache/custom-visual-blocks"
+    env["PYTHONPATH"] = str(PYTHON_SINGLE)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from render_cache.cache_paths import CACHE_ROOT, INDEX_PATH; "
+            "print(CACHE_ROOT); print(INDEX_PATH)",
+        ],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+    cache_root, index_path = result.stdout.strip().splitlines()
+    assert cache_root == str(
+        vault.resolve() / "resources/data/cache/custom-visual-blocks"
+    )
+    assert index_path == str(
+        vault.resolve() / "resources/data/cache/custom-visual-blocks/index.json"
     )
 
 

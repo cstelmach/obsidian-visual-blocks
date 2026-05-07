@@ -112,8 +112,8 @@ export interface CommandContext {
   reloadIndex: () => Promise<void>;
   getIndex: () => IndexShape | null;
   setRendering?: (sourcePath: string, rendering: boolean) => void;
-  cacheRoot: string; // e.g., ".obsidian/plugins/visual-blocks/cache"
-  indexPath: string; // e.g., ".obsidian/plugins/visual-blocks/cache/index.json"
+  cacheRoot: () => string; // e.g., "resources/data/cache/visual-blocks"
+  indexPath: () => string; // e.g., "resources/data/cache/visual-blocks/index.json"
 }
 
 /** Register all 7 commands with the plugin's command palette. */
@@ -389,7 +389,7 @@ async function clearAll(ctx: CommandContext): Promise<void> {
   let removed = 0;
   let errors = 0;
   try {
-    const files = await listFilesRecursive(adapter, ctx.cacheRoot);
+    const files = await listFilesRecursive(adapter, ctx.cacheRoot());
     for (const f of files) {
       try {
         await adapter.remove(f);
@@ -399,7 +399,7 @@ async function clearAll(ctx: CommandContext): Promise<void> {
       }
     }
   } catch (err) {
-    new Notice(`Cache directory not found: ${ctx.cacheRoot}`, 4000);
+    new Notice(`Cache directory not found: ${ctx.cacheRoot()}`, 4000);
     return;
   }
 

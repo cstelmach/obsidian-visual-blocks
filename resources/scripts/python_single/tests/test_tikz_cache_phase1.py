@@ -34,7 +34,7 @@ REPO_ROOT = PYTHON_SINGLE.parents[2]
 ADAPTER = PYTHON_SINGLE / "render_cache/adapters/tikz.py"
 CLI = PYTHON_SINGLE / "render_cache.py"
 SMOKE_MD = REPO_ROOT / "kn/math/concepts/mSB3-4_reals.md"
-CACHE_DIR = REPO_ROOT / ".obsidian/plugins/visual-blocks/cache/v1"
+CACHE_DIR = REPO_ROOT / "resources/data/cache/visual-blocks/v1"
 
 
 def _strip_docstrings_and_comments(source: str) -> str:
@@ -233,7 +233,7 @@ def test_smoke_render_produces_path_only_svg(tmp_path: Path) -> None:
         # hashes from Phase 1 are also tolerated for transition compatibility.
         new_md = SMOKE_MD.read_text(encoding="utf-8")
         ref_re = re.compile(
-            rf"!\[\[\.obsidian/plugins/visual-blocks/cache/v1/"
+            rf"!\[\[resources/data/cache/visual-blocks/v1/"
             rf"kn/math/concepts/{re.escape(SMOKE_MD.stem)}/"
             rf"0__[0-9a-f]{{16}}\.svg\|visual-blocks\]\]"
         )

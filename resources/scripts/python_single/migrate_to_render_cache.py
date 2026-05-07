@@ -1,8 +1,9 @@
-"""One-shot migration from legacy flat cache to Visual Blocks v1 layout.
+"""One-shot migration into the sync-friendly Visual Blocks cache layout.
 
-Moves ``attachments/cache/tikz/*.svg`` into
-``.obsidian/plugins/visual-blocks/cache/v1/<note-path>/`` and rewrites
-markdown image refs from ``tikz-cache`` to ``visual-blocks``.
+Copies existing Visual Blocks SVGs into
+``resources/data/cache/visual-blocks/v1/<note-path>/`` and rewrites markdown
+image refs to ``visual-blocks``. The previous cache root is retained as
+rollback until the user explicitly approves cleanup.
 """
 
 from __future__ import annotations
@@ -17,10 +18,10 @@ from pathlib import Path
 from typing import Any
 
 from render_cache.cache_paths import (
-    CACHE_ROOT,
     INDEX_PATH,
     LEGACY_CACHE_DIR,
     LEGACY_INDEX_PATH,
+    OLD_PLUGIN_INDEX_PATH,
     VAULT_ROOT,
     cache_path_for_rel,
 )
@@ -43,7 +44,7 @@ CACHE_REF_RE = re.compile(
 
 
 @dataclass(frozen=True)
-class SvgMove:
+class SvgCopy:
     old_rel: str
     new_rel: str
     old_abs: Path
@@ -62,7 +63,7 @@ class MigrationPlan:
     old_index_path: Path
     new_index_path: Path
     new_index: dict[str, Any]
-    moves: list[SvgMove] = field(default_factory=list)
+    copies: list[SvgCopy] = field(default_factory=list)
     markdown_updates: list[MarkdownUpdate] = field(default_factory=list)
     png_deletes: list[Path] = field(default_factory=list)
     orphan_svg_deletes: list[Path] = field(default_factory=list)
@@ -72,14 +73,14 @@ class MigrationPlan:
 
 @dataclass
 class MigrationSummary:
-    moved_svgs: int = 0
+    copied_svgs: int = 0
     updated_markdown_files: int = 0
     updated_markdown_refs: int = 0
     deleted_pngs: int = 0
     deleted_orphan_svgs: int = 0
     dropped_index_notes: int = 0
     missing_svg_refs: int = 0
-    removed_legacy_dir: bool = False
+    retained_old_cache_dir: bool = False
 
 
 def _vault_relative(vault_root: Path, path: Path) -> str:
@@ -90,6 +91,25 @@ def _load_legacy_index(path: Path) -> dict[str, Any]:
     if not path.exists():
         return empty_index()
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _rel_from_module_vault(path: Path) -> str:
+    return _vault_relative(VAULT_ROOT, path)
+
+
+def _index_candidates(vault_root: Path) -> list[Path]:
+    return [
+        vault_root / _rel_from_module_vault(INDEX_PATH),
+        vault_root / _rel_from_module_vault(OLD_PLUGIN_INDEX_PATH),
+        vault_root / _rel_from_module_vault(LEGACY_INDEX_PATH),
+    ]
+
+
+def _select_index_path(vault_root: Path) -> Path:
+    for path in _index_candidates(vault_root):
+        if path.exists():
+            return path
+    return vault_root / _rel_from_module_vault(INDEX_PATH)
 
 
 def _is_vault_relative_note(note_rel: str) -> bool:
@@ -137,9 +157,9 @@ def _register_ref_mapping(
 def build_plan(vault_root: Path = VAULT_ROOT) -> MigrationPlan:
     """Build a complete migration plan without touching the filesystem."""
     vault_root = vault_root.resolve()
-    old_index_path = vault_root / _vault_relative(VAULT_ROOT, LEGACY_INDEX_PATH)
-    new_index_path = vault_root / _vault_relative(VAULT_ROOT, INDEX_PATH)
-    legacy_dir = vault_root / _vault_relative(VAULT_ROOT, LEGACY_CACHE_DIR)
+    old_index_path = _select_index_path(vault_root)
+    new_index_path = vault_root / _rel_from_module_vault(INDEX_PATH)
+    legacy_dir = vault_root / _rel_from_module_vault(LEGACY_CACHE_DIR)
     old_index = _load_legacy_index(old_index_path)
     new_index = empty_index()
     for key in ("schemaVersion", "rendererVersion", "lastSweep", "preambleHashes"):
@@ -185,7 +205,8 @@ def build_plan(vault_root: Path = VAULT_ROOT) -> MigrationPlan:
             new_block["cachePath"] = new_rel
 
             if old_abs.exists() and old_abs.suffix == ".svg":
-                plan.moves.append(SvgMove(old_rel, new_rel, old_abs, new_abs))
+                if old_abs.resolve() != new_abs.resolve():
+                    plan.copies.append(SvgCopy(old_rel, new_rel, old_abs, new_abs))
                 moved_old_names.add(old_abs.name)
                 _register_ref_mapping(ref_mappings, old_rel, new_rel)
                 slot_mappings[(note_path.stem, block_idx + 1)] = new_rel
@@ -198,7 +219,6 @@ def build_plan(vault_root: Path = VAULT_ROOT) -> MigrationPlan:
         new_index["notes"][note_rel] = {"blocks": new_blocks}
 
     for png in sorted(legacy_dir.glob("*.png")) if legacy_dir.exists() else []:
-        plan.png_deletes.append(png)
         m = LEGACY_PNG_RE.match(png.name)
         if m:
             mapped = slot_mappings.get((m.group(1), int(m.group(2))))
@@ -207,7 +227,7 @@ def build_plan(vault_root: Path = VAULT_ROOT) -> MigrationPlan:
 
     for svg in sorted(legacy_dir.glob("*.svg")) if legacy_dir.exists() else []:
         if svg.name not in moved_old_names:
-            plan.orphan_svg_deletes.append(svg)
+            pass
 
     for md in _iter_markdown_files(vault_root):
         try:
@@ -217,8 +237,9 @@ def build_plan(vault_root: Path = VAULT_ROOT) -> MigrationPlan:
         replacements: dict[str, str] = {}
         for old_target, new_target in ref_mappings.items():
             existing = _first_existing_ref_text(old_target, text)
-            if existing is not None:
-                replacements[existing] = f"![[{new_target}|visual-blocks]]"
+            replacement = f"![[{new_target}|visual-blocks]]"
+            if existing is not None and existing != replacement:
+                replacements[existing] = replacement
         if replacements:
             plan.markdown_updates.append(MarkdownUpdate(md, replacements))
 
@@ -228,7 +249,7 @@ def build_plan(vault_root: Path = VAULT_ROOT) -> MigrationPlan:
 def execute_plan(plan: MigrationPlan, dry_run: bool) -> MigrationSummary:
     """Execute a migration plan, or report counts only when ``dry_run`` is true."""
     summary = MigrationSummary(
-        moved_svgs=len(plan.moves),
+        copied_svgs=len(plan.copies),
         updated_markdown_files=len(plan.markdown_updates),
         updated_markdown_refs=sum(len(u.replacements) for u in plan.markdown_updates),
         deleted_pngs=len(plan.png_deletes),
@@ -239,12 +260,12 @@ def execute_plan(plan: MigrationPlan, dry_run: bool) -> MigrationSummary:
     if dry_run:
         return summary
 
-    for move in plan.moves:
-        move.new_abs.parent.mkdir(parents=True, exist_ok=True)
-        if move.old_abs.exists():
-            if move.new_abs.exists():
-                move.new_abs.unlink()
-            shutil.move(str(move.old_abs), str(move.new_abs))
+    for copy in plan.copies:
+        copy.new_abs.parent.mkdir(parents=True, exist_ok=True)
+        if copy.old_abs.exists():
+            if copy.new_abs.exists():
+                copy.new_abs.unlink()
+            shutil.copy2(str(copy.old_abs), str(copy.new_abs))
 
     for update in plan.markdown_updates:
         text = update.file.read_text(encoding="utf-8")
@@ -255,28 +276,14 @@ def execute_plan(plan: MigrationPlan, dry_run: bool) -> MigrationSummary:
     plan.new_index_path.parent.mkdir(parents=True, exist_ok=True)
     save_index(plan.new_index_path, plan.new_index)
 
-    for png in plan.png_deletes:
-        if png.exists():
-            png.unlink()
-
-    for svg in plan.orphan_svg_deletes:
-        if svg.exists():
-            svg.unlink()
-
-    if plan.old_index_path.exists():
-        plan.old_index_path.unlink()
-
-    legacy_dir = plan.old_index_path.parent
-    if legacy_dir.exists():
-        shutil.rmtree(legacy_dir)
-    summary.removed_legacy_dir = not legacy_dir.exists()
+    summary.retained_old_cache_dir = plan.old_index_path.parent.exists()
     return summary
 
 
 def print_plan(plan: MigrationPlan, summary: MigrationSummary, dry_run: bool) -> None:
     mode = "DRY RUN" if dry_run else "EXECUTE"
-    print(f"Visual Blocks legacy migration plan ({mode})")
-    print(f"- SVG moves: {summary.moved_svgs}")
+    print(f"Visual Blocks cache-root migration plan ({mode})")
+    print(f"- SVG copies: {summary.copied_svgs}")
     print(f"- Markdown files to update: {summary.updated_markdown_files}")
     print(f"- Markdown refs to update: {summary.updated_markdown_refs}")
     print(f"- Legacy PNGs to delete: {summary.deleted_pngs}")
@@ -288,12 +295,12 @@ def print_plan(plan: MigrationPlan, summary: MigrationSummary, dry_run: bool) ->
     if dry_run:
         print("- No filesystem changes were made.")
     else:
-        print(f"- Legacy directory removed: {summary.removed_legacy_dir}")
+        print(f"- Old cache directory retained: {summary.retained_old_cache_dir}")
 
-    if plan.moves:
-        print("\nSample moves:")
-        for move in plan.moves[:10]:
-            print(f"  {move.old_rel} -> {move.new_rel}")
+    if plan.copies:
+        print("\nSample copies:")
+        for copy in plan.copies[:10]:
+            print(f"  {copy.old_rel} -> {copy.new_rel}")
     if plan.markdown_updates:
         print("\nSample markdown updates:")
         for update in plan.markdown_updates[:10]:
@@ -303,7 +310,7 @@ def print_plan(plan: MigrationPlan, summary: MigrationSummary, dry_run: bool) ->
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Migrate attachments/cache/tikz to the Visual Blocks plugin layout."
+        description="Migrate Visual Blocks cache into a sync-friendly vault folder."
     )
     parser.add_argument("--dry-run", action="store_true", help="report only")
     parser.add_argument(

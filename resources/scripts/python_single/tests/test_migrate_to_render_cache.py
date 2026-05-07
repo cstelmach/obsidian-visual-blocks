@@ -1,4 +1,4 @@
-"""Phase 12 tests — migrate legacy flat cache to plugin-managed layout."""
+"""Migration tests — move Visual Blocks cache to sync-friendly vault layout."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ def write_index(path: Path, note_rel: str, legacy_ref: str, key: str) -> None:
     )
 
 
-def test_cache_path_for_rel_uses_plugin_v1_note_layout() -> None:
+def test_cache_path_for_rel_uses_sync_friendly_v1_note_layout() -> None:
     from render_cache.cache_paths import VAULT_ROOT, cache_path_for_rel
 
     path = cache_path_for_rel(
@@ -56,7 +56,7 @@ def test_cache_path_for_rel_uses_plugin_v1_note_layout() -> None:
     )
 
     assert path.relative_to(VAULT_ROOT).as_posix() == (
-        ".obsidian/plugins/visual-blocks/cache/v1/"
+        "resources/data/cache/visual-blocks/v1/"
         "kn/math/concepts/mSB3-4_reals/0__814d986af7c9302c.svg"
     )
 
@@ -87,11 +87,11 @@ def test_dry_run_reports_plan_without_filesystem_changes(tmp_path: Path) -> None
     plan = build_plan(vault)
     summary = execute_plan(plan, dry_run=True)
 
-    assert summary.moved_svgs == 1
+    assert summary.copied_svgs == 1
     assert summary.updated_markdown_files == 1
     assert note.read_text(encoding="utf-8") == before_note
     assert legacy_svg.read_text(encoding="utf-8") == before_svg
-    assert not (vault / ".obsidian/plugins/visual-blocks/cache/index.json").exists()
+    assert not (vault / "resources/data/cache/visual-blocks/index.json").exists()
 
 
 def test_real_run_moves_svg_updates_index_and_markdown(tmp_path: Path) -> None:
@@ -105,7 +105,7 @@ def test_real_run_moves_svg_updates_index_and_markdown(tmp_path: Path) -> None:
     legacy_svg = vault / legacy_ref
     key = "814d986af7c9302c"
     new_rel = (
-        ".obsidian/plugins/visual-blocks/cache/v1/"
+        "resources/data/cache/visual-blocks/v1/"
         "kn/math/concepts/mSB3-4_reals/0__814d986af7c9302c.svg"
     )
 
@@ -122,23 +122,23 @@ def test_real_run_moves_svg_updates_index_and_markdown(tmp_path: Path) -> None:
 
     summary = execute_plan(build_plan(vault), dry_run=False)
 
-    assert summary.moved_svgs == 1
-    assert summary.deleted_pngs == 1
-    assert not legacy_svg.exists()
+    assert summary.copied_svgs == 1
+    assert summary.deleted_pngs == 0
+    assert legacy_svg.exists()
     assert (vault / new_rel).read_text(encoding="utf-8") == (
         "<svg viewBox='0 0 1 1'></svg>"
     )
     assert f"![[{new_rel}|visual-blocks]]" in note.read_text(encoding="utf-8")
 
     new_index = json.loads(
-        (vault / ".obsidian/plugins/visual-blocks/cache/index.json").read_text(
+        (vault / "resources/data/cache/visual-blocks/index.json").read_text(
             encoding="utf-8"
         )
     )
     block = new_index["notes"][note_rel]["blocks"][0]
     assert block["cachePath"] == new_rel
     assert block["blockIdx"] == 0
-    assert not legacy_dir.exists()
+    assert legacy_dir.exists()
 
 
 def test_real_run_replaces_existing_destination_svg(tmp_path: Path) -> None:
@@ -152,7 +152,7 @@ def test_real_run_replaces_existing_destination_svg(tmp_path: Path) -> None:
     legacy_svg = vault / legacy_ref
     key = "814d986af7c9302c"
     new_rel = (
-        ".obsidian/plugins/visual-blocks/cache/v1/"
+        "resources/data/cache/visual-blocks/v1/"
         "kn/math/concepts/mSB3-4_reals/0__814d986af7c9302c.svg"
     )
     existing_dest = vault / new_rel
@@ -171,9 +171,60 @@ def test_real_run_replaces_existing_destination_svg(tmp_path: Path) -> None:
 
     summary = execute_plan(build_plan(vault), dry_run=False)
 
-    assert summary.moved_svgs == 1
-    assert not legacy_svg.exists()
+    assert summary.copied_svgs == 1
+    assert legacy_svg.exists()
     assert existing_dest.read_text(encoding="utf-8") == "<svg id='legacy'></svg>"
+
+
+def test_real_run_migrates_existing_plugin_cache_without_deleting_it(
+    tmp_path: Path,
+) -> None:
+    from migrate_to_render_cache import build_plan, execute_plan
+
+    vault = tmp_path / "vault"
+    note_rel = "kn/math/concepts/mSB3-4_reals.md"
+    note = vault / note_rel
+    old_cache_root = vault / ".obsidian/plugins/visual-blocks/cache"
+    old_rel = (
+        ".obsidian/plugins/visual-blocks/cache/v1/"
+        "kn/math/concepts/mSB3-4_reals/0__814d986af7c9302c.svg"
+    )
+    old_svg = vault / old_rel
+    new_rel = (
+        "resources/data/cache/visual-blocks/v1/"
+        "kn/math/concepts/mSB3-4_reals/0__814d986af7c9302c.svg"
+    )
+    key = "814d986af7c9302c"
+
+    note.parent.mkdir(parents=True, exist_ok=True)
+    note.write_text(
+        "```tikz\n\\draw (0,0)--(1,1);\n```\n\n"
+        f"![[{old_rel}|visual-blocks]]\n",
+        encoding="utf-8",
+    )
+    old_svg.parent.mkdir(parents=True, exist_ok=True)
+    old_svg.write_text("<svg id='old-plugin-cache'></svg>", encoding="utf-8")
+    write_index(old_cache_root / "index.json", note_rel, old_rel, key)
+
+    summary = execute_plan(build_plan(vault), dry_run=False)
+
+    assert summary.copied_svgs == 1
+    assert old_svg.exists()
+    assert (vault / new_rel).read_text(encoding="utf-8") == (
+        "<svg id='old-plugin-cache'></svg>"
+    )
+    assert f"![[{new_rel}|visual-blocks]]" in note.read_text(encoding="utf-8")
+
+    new_index = json.loads(
+        (vault / "resources/data/cache/visual-blocks/index.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert new_index["notes"][note_rel]["blocks"][0]["cachePath"] == new_rel
+
+    post_summary = execute_plan(build_plan(vault), dry_run=True)
+    assert post_summary.copied_svgs == 0
+    assert post_summary.updated_markdown_refs == 0
 
 
 def test_absolute_temp_vault_index_entries_are_dropped(tmp_path: Path) -> None:
@@ -195,10 +246,10 @@ def test_absolute_temp_vault_index_entries_are_dropped(tmp_path: Path) -> None:
     summary = execute_plan(plan, dry_run=False)
 
     assert summary.dropped_index_notes == 1
-    assert summary.deleted_orphan_svgs == 1
-    assert not legacy_svg.exists()
+    assert summary.deleted_orphan_svgs == 0
+    assert legacy_svg.exists()
     new_index = json.loads(
-        (vault / ".obsidian/plugins/visual-blocks/cache/index.json").read_text(
+        (vault / "resources/data/cache/visual-blocks/index.json").read_text(
             encoding="utf-8"
         )
     )

@@ -6,7 +6,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { buildSpawnArgs, shellEscape } from "../src/render";
+import { buildSpawnArgs, buildSpawnEnv, shellEscape } from "../src/render";
 import { DEFAULT_SETTINGS } from "../src/settings";
 
 describe("shellEscape", () => {
@@ -98,10 +98,35 @@ describe("buildSpawnArgs (login shell mode)", () => {
   });
 });
 
+describe("buildSpawnEnv", () => {
+  it("passes the configured cache root to Python", () => {
+    const env = buildSpawnEnv(
+      {
+        ...DEFAULT_SETTINGS,
+        cacheRootPath: "resources/data/cache/custom-visual-blocks",
+      },
+      { PATH: "/usr/bin" },
+    );
+    expect(env.VISUAL_BLOCKS_CACHE_ROOT).toBe(
+      "resources/data/cache/custom-visual-blocks",
+    );
+    expect(env.PATH).toBe("/usr/bin");
+  });
+});
+
 describe("styles.css native cache-embed suppression", () => {
   const styles = readFileSync(resolve(process.cwd(), "styles.css"), "utf8");
 
   it("hides Obsidian native wrappers for plugin-owned cache wikilinks", () => {
+    expect(styles).toContain(
+      '.internal-embed[src*="resources/data/cache/visual-blocks/"]',
+    );
+    expect(styles).toContain(
+      '.image-embed[src*="resources/data/cache/visual-blocks/"]',
+    );
+    expect(styles).toContain(
+      '.markdown-embed[src*="resources/data/cache/visual-blocks/"]',
+    );
     expect(styles).toContain(
       '.internal-embed[src*=".obsidian/plugins/visual-blocks/cache/"]',
     );

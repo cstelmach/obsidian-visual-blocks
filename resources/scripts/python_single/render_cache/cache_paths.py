@@ -1,12 +1,12 @@
 """Cache filesystem layout helpers.
 
-Phase 12 adopts the SPEC §3.8 plugin-managed layout:
+Visual Blocks writes cache files into a sync-friendly vault data directory:
 
-``.obsidian/plugins/visual-blocks/cache/v1/<note-path>/<idx>__<hash>.svg``
+``resources/data/cache/visual-blocks/v1/<note-path>/<idx>__<hash>.svg``
 
 ``idx`` is the zero-based codeblock index, matching ``index.json``'s
-``blockIdx`` field. The old flat ``attachments/cache/tikz`` directory remains
-defined only for the migration script and rollback/debugging tools.
+``blockIdx`` field. Older cache roots remain defined only for migration and
+rollback/debugging tools.
 """
 from __future__ import annotations
 
@@ -28,13 +28,34 @@ def _resolve_vault_root() -> Path:
 
 
 VAULT_ROOT = _resolve_vault_root()
+DEFAULT_CACHE_ROOT_REL = "resources/data/cache/visual-blocks"
 
-# Phase 1-11 legacy cache directory. Phase 12 migrates data out of it.
+# Phase 1-11 legacy cache directory.
 LEGACY_CACHE_DIR = VAULT_ROOT / "attachments" / "cache" / "tikz"
 LEGACY_INDEX_PATH = LEGACY_CACHE_DIR / "index.json"
 
-# Canonical Phase 12+ plugin-managed cache directory.
-CACHE_ROOT = VAULT_ROOT / ".obsidian" / "plugins" / "visual-blocks" / "cache"
+# Phase 12-13 plugin-managed cache directory. Retained as migration input.
+OLD_PLUGIN_CACHE_ROOT = VAULT_ROOT / ".obsidian" / "plugins" / "visual-blocks" / "cache"
+OLD_PLUGIN_INDEX_PATH = OLD_PLUGIN_CACHE_ROOT / "index.json"
+
+
+def _resolve_cache_root() -> Path:
+    """Return the configured cache root for this renderer process.
+
+    The plugin passes VISUAL_BLOCKS_CACHE_ROOT from its settings on every
+    desktop render spawn. Relative values resolve inside VAULT_ROOT so the
+    setting remains portable across machines.
+    """
+    configured = os.environ.get("VISUAL_BLOCKS_CACHE_ROOT")
+    raw = configured.strip() if configured else DEFAULT_CACHE_ROOT_REL
+    root = Path(raw).expanduser()
+    if not root.is_absolute():
+        root = VAULT_ROOT / root
+    return root.resolve()
+
+
+# Canonical sync-friendly cache directory.
+CACHE_ROOT = _resolve_cache_root()
 CACHE_VERSION = "v1"
 CACHE_DIR = CACHE_ROOT / CACHE_VERSION
 INDEX_PATH = CACHE_ROOT / "index.json"

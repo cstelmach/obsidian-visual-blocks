@@ -4,8 +4,9 @@
  *   The author-time pipeline inserts ![[…|visual-blocks]] wikilinks
  *   in the markdown after each rendered block. When the cache lived under
  *   attachments/, Obsidian rendered those as <img alt="visual-blocks" …>.
- *   The Phase 12 plugin-owned cache now lives under .obsidian/plugins/,
- *   where Obsidian's native wikilink resolver can also produce a broken
+ *   The cache now lives under resources/data/cache/visual-blocks; older vaults
+ *   may still have refs under .obsidian/plugins/visual-blocks/cache. Obsidian's
+ *   native wikilink resolver can produce a duplicate image or broken
  *   .internal-embed / .image-embed wrapper. Once this plugin is active,
  *   its codeblock processor produces its own <img class="visual-blocks-img"
  *   alt="<lang>-cache">. Without the rules below the user would see the
@@ -25,12 +26,18 @@ img[alt~="visual-blocks"]:not(.visual-blocks-img) {
     display: none;
 }
 
+.internal-embed[src*="resources/data/cache/visual-blocks/"],
+.internal-embed[data-src*="resources/data/cache/visual-blocks/"],
 .internal-embed[src*=".obsidian/plugins/visual-blocks/cache/"],
 .internal-embed[data-src*=".obsidian/plugins/visual-blocks/cache/"],
 .internal-embed[alt~="visual-blocks"],
+.image-embed[src*="resources/data/cache/visual-blocks/"],
+.image-embed[data-src*="resources/data/cache/visual-blocks/"],
 .image-embed[src*=".obsidian/plugins/visual-blocks/cache/"],
 .image-embed[data-src*=".obsidian/plugins/visual-blocks/cache/"],
 .image-embed[alt~="visual-blocks"],
+.markdown-embed[src*="resources/data/cache/visual-blocks/"],
+.markdown-embed[data-src*="resources/data/cache/visual-blocks/"],
 .markdown-embed[src*=".obsidian/plugins/visual-blocks/cache/"],
 .markdown-embed[data-src*=".obsidian/plugins/visual-blocks/cache/"],
 .markdown-embed[alt~="visual-blocks"] {

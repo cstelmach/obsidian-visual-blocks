@@ -79,6 +79,7 @@ fi
 echo
 
 echo "Protected paths are never copied or deleted:"
+echo "- $VAULT_ROOT/resources/data/cache/visual-blocks"
 echo "- $PLUGIN_DEST/cache"
 echo "- $PLUGIN_DEST/data.json"
 echo "- $PLUGIN_DEST/node_modules"
